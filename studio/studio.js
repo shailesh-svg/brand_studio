@@ -1708,14 +1708,16 @@ function relLum([r,g,b]){
   return 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b);
 }
 function contrastRatio(a, b){ const l1=relLum(a), l2=relLum(b); const hi=Math.max(l1,l2), lo=Math.min(l1,l2); return (hi+0.05)/(lo+0.05); }
-function effectiveBg(el){
+function effectiveBg(el, strict){
   let n = el;
   while(n && n.nodeType===1){
-    const c = parseColor(getComputedStyle(n).backgroundColor);
+    const cs = getComputedStyle(n);
+    const c = parseColor(cs.backgroundColor);
     if(c && c[3] > 0.1) return c;
+    if(strict && cs.backgroundImage && cs.backgroundImage !== 'none') return null;  // gradient/image — can't measure reliably
     n = n.parentElement;
   }
-  return state.theme==='dark' ? [10,14,42,1] : [255,255,255,1];
+  return strict ? null : (state.theme==='dark' ? [10,14,42,1] : [255,255,255,1]);
 }
 function updateContrast(){
   const chip = document.getElementById('tb-contrast'); if(!chip) return;
@@ -1731,6 +1733,68 @@ function updateContrast(){
   chip.textContent = (pass?'AA ✓ ':'AA ✗ ') + ratio.toFixed(1);
   chip.className = 'tb-contrast ' + (pass ? 'ok' : 'bad');
   chip.title = `Contrast ${ratio.toFixed(2)}:1 vs ${pass?'meets':'below'} AA (needs ${thr})`;
+}
+
+/* ---------- brand check (consistency audit) ---------- */
+const BRAND_PALETTE = new Set([
+  '0047ab','003c90','2e6fd6','00b8d9','ffffff','000000',
+  'f7f8fa','eef0f4','e2e6ec','cbd2dc','9aa4b2','6b7686','4b5563','374151','0e1320',
+  '02020a','0a0e2a','111145','141857','1d2b74','202e86','2c2bad','8fb4ff',
+  '1fa971','e6f6ef','f2b705','fdf6e3','e8852b','fdefe2','d64545','fbeaea','f4f8fe'
+]);
+function rgbToHex(s){ const m=String(s).match(/rgba?\(([^)]+)\)/); if(!m) return null;
+  const p=m[1].split(',').map(x=>parseFloat(x)); if(p.length>3 && p[3]<0.99) return null;
+  return p.slice(0,3).map(n=>Math.round(n).toString(16).padStart(2,'0')).join('').toLowerCase(); }
+function snippet(s){ s=s.replace(/\s+/g,' ').trim(); return s.length>34 ? s.slice(0,32)+'…' : s; }
+async function runBrandCheck(){
+  await document.fonts.ready;
+  const map = new Map();   // dedupe identical issues across slides
+  const add = (sev,type,msg,slide)=>{ const k=type+'|'+msg; let f=map.get(k);
+    if(!f){ f={sev,type,msg,slides:[]}; map.set(k,f); } if(f.slides.indexOf(slide)<0) f.slides.push(slide); };
+  const host = h('div',{style:{position:'fixed', left:'-100000px', top:'0'}}); document.body.appendChild(host);
+  const ov = state.overrides[state.kind] || {};
+  const deck = isDeckKind(state.kind);   // decks: backgrounds are sibling shapes → contrast needs pixels, skip (already approved)
+  try {
+    for(let i=0;i<_frames.length;i++){
+      const fr = _frames[i]; const el = fr.build();
+      applyOverridesTo(el, ov); appendDecor(el, state.kind, i, false); host.appendChild(el);
+      if(deck) fitImported(el);
+      const frameRect = el.getBoundingClientRect();
+      el.querySelectorAll('[data-bind], .nt-imp-tx').forEach(t=>{
+        const txt = (t.innerText||'').trim(); if(!txt) return;
+        const cs = getComputedStyle(t);
+        // AA contrast (templates only — background is the ancestor and measurable)
+        const fg = parseColor(cs.color); const bg = deck ? null : effectiveBg(t.parentElement || t, false);
+        if(fg && bg){ const ratio = contrastRatio(fg, bg); const size=parseFloat(cs.fontSize), bold=parseInt(cs.fontWeight)>=600;
+          const thr = (size>=28 || (bold && size>=22)) ? 3.0 : 4.5;
+          if(ratio < thr - 0.05) add('high','Contrast', `“${snippet(txt)}” — ${ratio.toFixed(1)}:1, below AA`, i+1); }
+        // text running off the page edge (true clipping by the frame)
+        const r = t.getBoundingClientRect();
+        const L=r.left-frameRect.left, T=r.top-frameRect.top, R=r.right-frameRect.left, B=r.bottom-frameRect.top;
+        if(L < -2 || T < -2 || R > fr.w+2 || B > fr.h+2) add('med','Bleed', `“${snippet(txt)}” runs off the edge of the page`, i+1);
+      });
+      host.removeChild(el);
+    }
+  } finally { host.remove(); }
+  showBrandCheck([...map.values()]);
+}
+function showBrandCheck(findings){
+  const order = {high:0, med:1, low:2};
+  findings.sort((a,b)=> (order[a.sev]-order[b.sev]) || (a.slides[0]-b.slides[0]));
+  const ov = h('div',{class:'lib-lightbox', onclick:e=>{ if(e.target===ov) ov.remove(); }});
+  const n = findings.length;
+  const card = h('div',{class:'bc-card'});
+  card.appendChild(h('div',{class:'bc-head'},[
+    h('div',{class:'bc-title'}, (n?'⚠ ':'✓ ') + (n ? `${n} thing${n>1?'s':''} to review` : 'On-brand — no issues found')),
+    h('button',{class:'ghost-btn', onclick:()=>ov.remove()}, 'Close ✕') ]));
+  const body = h('div',{class:'bc-body'});
+  if(!n) body.appendChild(h('div',{class:'bc-ok'}, `Contrast and margins check out across ${_frames.length} ${_frames.length>1?'slides':'frame'}.`));
+  findings.forEach(f=>{ const multi = f.slides.length>1;
+    body.appendChild(h('div',{class:'bc-item', onclick:()=>{ state.active=f.slides[0]-1; editorDeselect(); renderPreview(); updateActiveThumb(); ov.remove(); }},
+      [ h('span',{class:'bc-sev bc-'+f.sev}),
+        h('span',{class:'bc-slide'}, multi ? f.slides.length+' slides' : 'Slide '+f.slides[0]),
+        h('span',{class:'bc-type'}, f.type), h('span',{class:'bc-msg'}, f.msg) ])); });
+  card.appendChild(body); ov.appendChild(card); document.body.appendChild(ov);
 }
 
 /* ---------- markup (review annotations) ---------- */
@@ -2193,6 +2257,7 @@ function buildStageControls(){
     mk('↺','Undo (⌘Z)', ()=>undo()),
     mk('↻','Redo (⇧⌘Z)', ()=>redo()),
     mk('Guides','Toggle safe-area & centre guides', toggleSafe, 'btn-safe'),
+    mk('Check','Run a brand consistency check', ()=>runBrandCheck()),
     mk('Markup','Toggle review markup', toggleMarkup, 'btn-markup'),
     mk('Reset','Reset to brand template', resetAll)
   );

@@ -95,6 +95,12 @@ and delete** slides/pages, and change each one's **type**.
   (⤓ / ⤒) — so glows and grids can sit behind your copy.
 - **Duplicate a slide/page**: the **⧉** button on each slide/page card in the form.
 
+### Brand check (top bar)
+Click **Check** to audit the whole asset for **AA contrast** (on composable
+templates) and **text running off the page edge** across every slide. Findings are
+deduped (repeats show "N slides") and click-to-jump; approved decks come back
+**✓ on-brand**. Run it before exporting.
+
 ### Guides & safety (top bar)
 - **Guides** toggles a **safe-area overlay** — a dashed margin box + centre lines so
   nothing important sits too close to the edge for LinkedIn/print.
