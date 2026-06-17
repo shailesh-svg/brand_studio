@@ -89,7 +89,7 @@ swatches** · **Edit** · **Reset** (this element).
 ### Elements (drop-in decorations)
 The **Elements** section in the left rail is a palette of brand graphics — chevron
 flow, circuit corner, quote mark, gradient divider, dot field, glow orb, N
-monogram. **Click one to drop it on the current slide/page**, then **drag** to
+monogram, **process-flow diagram**, and **timeline / Gantt**. **Click one to drop it on the current slide/page**, then **drag** to
 place, use the **corner handle** to resize, and the floating toolbar to **recolor**
 (brand swatches) or **cycle opacity** / **remove**. Decorations save with the asset
 and appear in every export. (Only approved elements + brand colors — stays on-brand.)

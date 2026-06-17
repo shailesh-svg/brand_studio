@@ -1485,7 +1485,11 @@ const ELEMENTS = {
   orb: { name:'Glow orb', w:520, op:0.55, svg:
     '<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="ob" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#2E6FD6"/><stop offset="55%" stop-color="#0047AB"/><stop offset="100%" stop-color="#0047AB" stop-opacity="0"/></radialGradient></defs><circle cx="200" cy="200" r="200" fill="url(#ob)"/></svg>' },
   monogram: { name:'N monogram', w:160, op:1, svg:
-    '<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" rx="116" fill="#0047AB"/><path d="M150 358 V154 L362 358 V154" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="square"/><circle cx="150" cy="154" r="13" fill="#00B8D9"/><circle cx="362" cy="358" r="13" fill="#00B8D9"/></svg>' }
+    '<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" rx="116" fill="#0047AB"/><path d="M150 358 V154 L362 358 V154" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="square"/><circle cx="150" cy="154" r="13" fill="#00B8D9"/><circle cx="362" cy="358" r="13" fill="#00B8D9"/></svg>' },
+  flow: { name:'Process flow', w:460, op:1, svg:
+    '<svg viewBox="0 0 480 120" xmlns="http://www.w3.org/2000/svg"><g fill="#F7F8FA" stroke="#0047AB" stroke-width="2.5"><rect x="8" y="34" width="94" height="52" rx="12"/><rect x="130" y="34" width="94" height="52" rx="12"/><rect x="252" y="34" width="94" height="52" rx="12"/><rect x="374" y="34" width="94" height="52" rx="12"/></g><g stroke="#2E6FD6" stroke-width="3" fill="none" stroke-linecap="round"><path d="M106 60 H122"/><path d="M228 60 H244"/><path d="M350 60 H366"/></g><g fill="#2E6FD6"><path d="M120 54 L128 60 L120 66 Z"/><path d="M242 54 L250 60 L242 66 Z"/><path d="M364 54 L372 60 L364 66 Z"/></g><g fill="#0047AB"><circle cx="55" cy="60" r="5"/><circle cx="177" cy="60" r="5"/><circle cx="299" cy="60" r="5"/><circle cx="421" cy="60" r="5"/></g></svg>' },
+  gantt: { name:'Timeline / Gantt', w:540, op:1, svg:
+    '<svg viewBox="0 0 480 210" xmlns="http://www.w3.org/2000/svg"><g stroke="#E2E6EC" stroke-width="1"><path d="M20 18V196"/><path d="M58 18V196"/><path d="M95 18V196"/><path d="M133 18V196"/><path d="M170 18V196"/><path d="M208 18V196"/><path d="M245 18V196"/><path d="M283 18V196"/><path d="M320 18V196"/><path d="M358 18V196"/><path d="M395 18V196"/><path d="M433 18V196"/><path d="M470 18V196"/></g><rect x="20" y="28" width="75" height="22" rx="6" fill="#0047AB"/><rect x="58" y="62" width="150" height="22" rx="6" fill="#2E6FD6"/><rect x="95" y="96" width="165" height="22" rx="6" fill="#0047AB"/><rect x="170" y="130" width="113" height="22" rx="6" fill="#2E6FD6"/><rect x="283" y="164" width="165" height="22" rx="6" fill="#0047AB"/></svg>' }
 };
 /* aspect ratio (h/w) from each element's viewBox — used for alignment math */
 Object.values(ELEMENTS).forEach(e=>{ const m = e.svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/); e.ratio = m ? (+m[2]/+m[1]) : 1; });
@@ -1763,9 +1767,37 @@ function refCard(ref){
   }
   c.appendChild(h('div',{class:'lib-badge'}, ref.group==='approved' ? 'Approved' : 'Reference'));
   c.appendChild(h('div',{class:'lib-meta'},[ h('div',{class:'lib-name'}, ref.title) ]));
-  c.appendChild(h('div',{class:'lib-actions'},
-    [ h('a',{class:'lib-act primary', href:ref.file, target:'_blank', rel:'noopener'}, 'Open '+(ref.ext||'').toUpperCase()) ]));
+  const ed = refToEditable(ref);
+  const row = h('div',{class:'lib-actions'});
+  if(ed) row.appendChild(h('button',{class:'lib-act primary', onclick:()=>{
+    loadAsset(ed.kind, KINDS[ed.kind].themes[0], KINDS[ed.kind].defaults());
+    toast('Opened editable '+KINDS[ed.kind].name); }}, 'Edit in Studio'));
+  row.appendChild(h('button',{class:'lib-act'+(ed?'':' primary'), onclick:()=>previewRef(ref)}, 'Preview'));
+  c.appendChild(row);
   return c;
+}
+/* an approved reference that has an editable Studio equivalent opens there, not the raw file */
+function refToEditable(ref){
+  const t = ((ref.title||'') + ' ' + (ref.file||'')).toLowerCase();
+  if(t.includes('proposal') || t.includes('pension')) return {kind:'proposal'};
+  if(t.includes('onepager') || t.includes('one-pager') || t.includes('capability')) return {kind:'onepager'};
+  return null;
+}
+/* in-app preview — never navigates the Studio away to the original file path */
+function previewRef(ref){
+  const ov = h('div',{class:'lib-lightbox', onclick:e=>{ if(e.target===ov) ov.remove(); }});
+  let media;
+  if(ref.type==='image') media = h('img',{src:ref.file, class:'lb-media', alt:ref.title});
+  else if(ref.type==='pdf' || ref.type==='page') media = h('iframe',{src:ref.file, class:'lb-frame'});
+  else media = h('img',{src:ref.thumb || ref.file, class:'lb-media', alt:ref.title}); // deck/doc → first-page thumbnail
+  ov.appendChild(h('div',{class:'lb-card'},[
+    h('div',{class:'lb-head'},[
+      h('div',{class:'lb-title'}, ref.title),
+      h('div',{class:'lb-head-actions'},[
+        h('a',{class:'ghost-btn', href:ref.file, target:'_blank', rel:'noopener'}, 'Open original ↗'),
+        h('button',{class:'ghost-btn', onclick:()=>ov.remove()}, 'Close ✕') ]) ]),
+    media ]));
+  document.body.appendChild(ov);
 }
 function buildGallery(){
   const overlay = h('div',{class:'lib-overlay', style:{display:'none'}, onclick:e=>{ if(e.target===overlay) closeGallery(); }});

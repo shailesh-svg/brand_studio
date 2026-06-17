@@ -294,6 +294,19 @@ body { background: var(--gray-50); overflow: hidden; }
 .lib-ref .lib-badge { background: rgba(0,71,171,0.08); color: var(--cobalt); }
 .lib-ref a.lib-act { text-decoration: none; }
 
+/* in-app reference preview lightbox */
+.lib-lightbox { position: fixed; inset: 0; z-index: 300; display: flex; padding: 40px;
+  background: rgba(14,19,32,0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.lb-card { margin: auto; width: 100%; max-width: 900px; max-height: 90vh; display: flex; flex-direction: column;
+  background: var(--white); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-lg); }
+.lb-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.lb-title { font-weight: var(--w-medium); color: var(--gray-900); font-size: var(--text-sm); }
+.lb-head-actions { display: flex; gap: 8px; }
+.lb-head-actions a { text-decoration: none; }
+.lb-media { display: block; max-width: 100%; max-height: calc(90vh - 56px); object-fit: contain; margin: auto; background: var(--gray-100); }
+.lb-frame { width: 100%; height: calc(90vh - 56px); border: 0; background: var(--gray-100); }
+
 /* ============================================================
    DIRECT-MANIPULATION EDITOR
    ============================================================ */

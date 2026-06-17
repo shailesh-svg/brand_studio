@@ -1,0 +1,17 @@
+<svg width="480" height="120" viewBox="0 0 480 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Newtuple process flow">
+  <g fill="#F7F8FA" stroke="#0047AB" stroke-width="2.5">
+    <rect x="8" y="34" width="94" height="52" rx="12"/>
+    <rect x="130" y="34" width="94" height="52" rx="12"/>
+    <rect x="252" y="34" width="94" height="52" rx="12"/>
+    <rect x="374" y="34" width="94" height="52" rx="12"/>
+  </g>
+  <g stroke="#2E6FD6" stroke-width="3" fill="none" stroke-linecap="round">
+    <path d="M106 60 H122"/><path d="M228 60 H244"/><path d="M350 60 H366"/>
+  </g>
+  <g fill="#2E6FD6">
+    <path d="M120 54 L128 60 L120 66 Z"/><path d="M242 54 L250 60 L242 66 Z"/><path d="M364 54 L372 60 L364 66 Z"/>
+  </g>
+  <g fill="#0047AB">
+    <circle cx="55" cy="60" r="5"/><circle cx="177" cy="60" r="5"/><circle cx="299" cy="60" r="5"/><circle cx="421" cy="60" r="5"/>
+  </g>
+</svg>

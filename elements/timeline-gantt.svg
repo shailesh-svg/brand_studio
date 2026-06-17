@@ -1,0 +1,12 @@
+<svg width="480" height="210" viewBox="0 0 480 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Newtuple timeline / Gantt">
+  <g stroke="#E2E6EC" stroke-width="1">
+    <path d="M20 18V196"/><path d="M58 18V196"/><path d="M95 18V196"/><path d="M133 18V196"/>
+    <path d="M170 18V196"/><path d="M208 18V196"/><path d="M245 18V196"/><path d="M283 18V196"/>
+    <path d="M320 18V196"/><path d="M358 18V196"/><path d="M395 18V196"/><path d="M433 18V196"/><path d="M470 18V196"/>
+  </g>
+  <rect x="20" y="28" width="75" height="22" rx="6" fill="#0047AB"/>
+  <rect x="58" y="62" width="150" height="22" rx="6" fill="#2E6FD6"/>
+  <rect x="95" y="96" width="165" height="22" rx="6" fill="#0047AB"/>
+  <rect x="170" y="130" width="113" height="22" rx="6" fill="#2E6FD6"/>
+  <rect x="283" y="164" width="165" height="22" rx="6" fill="#0047AB"/>
+</svg>
