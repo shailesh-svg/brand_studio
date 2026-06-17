@@ -2,14 +2,6 @@
    Drop files into uploads/approved/ then re-run. Do not hand-edit. */
 window.NT_REFERENCES = [
   {
-    "file": "../uploads/approved.pptx",
-    "thumb": "ref-thumbs/uploads-approved.png",
-    "title": "approved",
-    "type": "deck",
-    "ext": "pptx",
-    "group": "approved"
-  },
-  {
     "file": "../uploads/approved/fable5-carousel.pptx",
     "thumb": "ref-thumbs/uploads-approved-fable5-carousel.png",
     "title": "fable5 carousel",
@@ -58,35 +50,11 @@ window.NT_REFERENCES = [
     "group": "approved"
   },
   {
-    "file": "../uploads/Agentic%20Design%20Patterns%20-%20LinkedIn%20Carousel.pdf",
-    "thumb": "ref-thumbs/uploads-agentic-design-patterns-linkedin-carousel.png",
-    "title": "Agentic Design Patterns LinkedIn Carousel",
-    "type": "pdf",
-    "ext": "pdf",
-    "group": "reference"
-  },
-  {
-    "file": "../uploads/AI-Governance-Moment.pptx%20%282%29.pptx",
-    "thumb": "ref-thumbs/uploads-ai-governance-moment-pptx-2.png",
-    "title": "AI Governance Moment.pptx (2)",
+    "file": "../uploads/approved/Pension_Contribution_Processing_Automation_-_Newtuple_Proposal%20%284%29%20%283%29.pptx",
+    "thumb": "ref-thumbs/uploads-approved-pension-contribution-processing-automation-newtuple-proposal-4-3.png",
+    "title": "Pension Contribution Processing Automation Newtuple Proposal (4) (3)",
     "type": "deck",
     "ext": "pptx",
-    "group": "reference"
-  },
-  {
-    "file": "../uploads/image.png",
-    "thumb": "ref-thumbs/uploads-image.png",
-    "title": "image",
-    "type": "image",
-    "ext": "png",
-    "group": "reference"
-  },
-  {
-    "file": "../uploads/link.html",
-    "thumb": "ref-thumbs/uploads-link.png",
-    "title": "link",
-    "type": "page",
-    "ext": "html",
-    "group": "reference"
+    "group": "approved"
   }
 ];

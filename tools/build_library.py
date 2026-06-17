@@ -17,7 +17,7 @@ import json, os, shutil, subprocess, sys, tempfile, urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-SRC  = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'uploads')
+SRC  = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'uploads', 'approved')
 STUDIO = os.path.join(ROOT, 'studio')
 OUT  = os.path.join(STUDIO, 'references.js')
 THUMBS = os.path.join(STUDIO, 'ref-thumbs')
