@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Slides" name="AI Governance Moment Carousel" subtitle="6-slide LinkedIn carousel · Glasswing / governance" viewport="900x900" -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The AI Governance Moment — Newtuple</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{background:#05060f;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;overflow:hidden;-webkit-font-smoothing:antialiased;}
+  #slideWrap{border-radius:14px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55);flex-shrink:0;width:1080px;height:1080px;}
+  .navbtn{position:fixed;top:50%;transform:translateY(-50%);width:52px;height:52px;border-radius:9999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);backdrop-filter:blur(10px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:30;transition:background .25s;}
+  .navbtn:hover{background:rgba(255,255,255,.18);}
+  .navbtn:disabled{opacity:.25;cursor:default;}
+  #prev{left:24px;} #next{right:24px;}
+  #dots{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:30;}
+  #counter{position:fixed;top:22px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.6);font-size:13px;letter-spacing:.08em;z-index:30;font-family:'JetBrains Mono',monospace;}
+  #title{position:fixed;top:22px;left:24px;color:rgba(255,255,255,.65);font-size:13px;font-weight:500;letter-spacing:0.06em;z-index:30;}
+  #download{position:fixed;top:22px;right:24px;color:#fff;font-size:13px;font-weight:500;background:#0047AB;border:none;border-radius:9999px;padding:9px 18px;cursor:pointer;z-index:30;box-shadow:0 12px 32px rgba(0,71,171,.32);transition:background .25s;}
+  #download:hover{background:#003C90;}
+  #download:disabled{opacity:.6;cursor:default;}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+</head>
+<body>
+<div id="title">The AI Governance Moment</div>
+<div id="counter"></div>
+<button id="download" type="button" title="Download all slides as PNGs in a ZIP">↓ Download ZIP</button>
+<button id="prev" class="navbtn" aria-label="Previous"><i data-lucide="arrow-left"></i></button>
+<div id="slideWrap"><div id="root"></div></div>
+<button id="next" class="navbtn" aria-label="Next"><i data-lucide="arrow-right"></i></button>
+<div id="dots"></div>
+
+<script type="text/babel" src="GovernanceSlides.jsx"></script>
+<script type="text/babel">
+let idx = 0;
+const root = ReactDOM.createRoot(document.getElementById('root'));
+const counter = document.getElementById('counter');
+const prevBtn = document.getElementById('prev');
+const nextBtn = document.getElementById('next');
+const dots = document.getElementById('dots');
+const N = window.__GovernanceSlides.length;
+
+function paintDots(){
+  dots.innerHTML = '';
+  for (let i=0; i<N; i++){
+    const b = document.createElement('button');
+    b.setAttribute('aria-label', 'Slide '+(i+1));
+    const on = i===idx;
+    b.style.cssText = 'border:none;cursor:pointer;padding:0;border-radius:9999px;height:8px;transition:width .3s;'
+      + 'width:' + (on?'26px':'8px') + ';'
+      + 'background:' + (on?'#fff':'rgba(255,255,255,.32)') + ';';
+    b.onclick = () => go(i);
+    dots.appendChild(b);
+  }
+}
+
+function fit(){
+  const s = Math.min((window.innerWidth - 200)/1080, (window.innerHeight - 110)/1080);
+  document.getElementById('slideWrap').style.transform = `scale(${s})`;
+  document.getElementById('slideWrap').style.transformOrigin = 'center';
+}
+function render(){
+  window.__GPAGE = idx + 1;
+  const Comp = window.__GovernanceSlides[idx];
+  root.render(<Comp />);
+  counter.textContent = String(idx+1).padStart(2,'0') + ' / ' + String(N).padStart(2,'0');
+  prevBtn.disabled = idx===0; nextBtn.disabled = idx===N-1;
+  paintDots();
+  setTimeout(()=>{ if(window.lucide) window.lucide.createIcons(); }, 30);
+}
+function go(n){ idx = Math.max(0, Math.min(N-1, n)); render(); }
+prevBtn.onclick = ()=>go(idx-1);
+nextBtn.onclick = ()=>go(idx+1);
+window.addEventListener('keydown', e=>{ if(e.key==='ArrowRight')go(idx+1); if(e.key==='ArrowLeft')go(idx-1); });
+let sx=0;
+window.addEventListener('touchstart', e=>sx=e.touches[0].clientX, {passive:true});
+window.addEventListener('touchend', e=>{ const dx=e.changedTouches[0].clientX-sx; if(Math.abs(dx)>50) go(idx + (dx<0?1:-1)); }, {passive:true});
+window.addEventListener('resize', fit);
+requestAnimationFrame(()=>{ fit(); render(); });
+
+/* ── Export: capture each slide at native 1080×1080 → ZIP ── */
+const dlBtn = document.getElementById('download');
+dlBtn.addEventListener('click', async () => {
+  if (!window.htmlToImage || !window.JSZip) { alert('Export libs still loading. Try again in a moment.'); return; }
+  const origLabel = dlBtn.textContent;
+  dlBtn.disabled = true;
+  const slideEl = document.getElementById('slideWrap');
+  const inner = slideEl.firstElementChild; // #root
+  const prevTransform = slideEl.style.transform;
+  const prevOrigin = slideEl.style.transformOrigin;
+  slideEl.style.transform = 'scale(1)';
+  slideEl.style.transformOrigin = 'top left';
+  const startIdx = idx;
+  const zip = new JSZip();
+  try {
+    for (let i = 0; i < N; i++) {
+      dlBtn.textContent = `Capturing ${i+1}/${N}…`;
+      idx = i;
+      render();
+      await new Promise(r => setTimeout(r, 350)); // let images + lucide settle
+      const dataUrl = await window.htmlToImage.toPng(inner, {
+        width: 1080, height: 1080, pixelRatio: 1, cacheBust: true,
+        style: { transform: 'none' },
+      });
+      const b64 = dataUrl.split(',')[1];
+      zip.file(`slide-${String(i+1).padStart(2,'0')}.png`, b64, { base64: true });
+    }
+    dlBtn.textContent = 'Zipping…';
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'AI-Governance-Moment-1080.zip';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (e) {
+    console.error(e); alert('Export failed: ' + e.message);
+  } finally {
+    slideEl.style.transform = prevTransform;
+    slideEl.style.transformOrigin = prevOrigin;
+    idx = startIdx; render(); fit();
+    dlBtn.textContent = origLabel; dlBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

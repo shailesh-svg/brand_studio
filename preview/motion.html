@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Spacing" name="Motion" subtitle="300/500ms/6s · ease-in-out" viewport="700x200" --><html lang="en"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .dot{width:18px;height:18px;border-radius:50%;background:var(--cobalt);}
+  .track{position:relative;height:18px;flex:1;background:var(--gray-100);border-radius:9999px;overflow:hidden;}
+  .track .dot{position:absolute;top:0;left:0;animation:slide var(--d) infinite alternate;}
+  @keyframes slide{from{left:0;}to{left:calc(100% - 18px);}}
+  .lab{font-family:var(--font-mono);font-size:11px;color:var(--gray-400);width:118px;}
+  .e{height:6px;border-radius:9999px;background:linear-gradient(90deg,var(--cobalt),var(--cyan));}
+</style>
+</head><body>
+<div class="card" style="gap:16px;">
+  <div class="cap">Motion — clarity, never decoration · ease-in-out</div>
+  <div class="row" style="gap:14px;"><span class="lab">300ms · hover</span><div class="track"><span class="dot" style="--d:.9s;background:var(--cobalt);"></span></div></div>
+  <div class="row" style="gap:14px;"><span class="lab">500ms · transition</span><div class="track"><span class="dot" style="--d:1.5s;"></span></div></div>
+  <div class="row" style="gap:14px;"><span class="lab">6s · bg float</span><div class="track"><span class="dot" style="--d:6s;"></span></div></div>
+  <div style="font-family:var(--font-mono);font-size:11px;color:var(--gray-400);">cubic-bezier(0.4, 0, 0.2, 1) · fade-ins gentle &amp; one-directional · no bounce</div>
+</div>
+</body></html>

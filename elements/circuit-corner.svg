@@ -1,0 +1,17 @@
+<svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Newtuple circuit connector motif">
+  <g fill="none" stroke="#0047AB" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M36 36 H150 a24 24 0 0 1 24 24 V120"/>
+    <path d="M36 84 H96 a24 24 0 0 1 24 24 V176"/>
+    <path d="M84 36 V72 a24 24 0 0 0 24 24 H168"/>
+  </g>
+  <g fill="#0047AB">
+    <circle cx="36" cy="36" r="9"/>
+    <circle cx="36" cy="84" r="6"/>
+    <circle cx="84" cy="36" r="6"/>
+  </g>
+  <g fill="#00B8D9">
+    <circle cx="174" cy="120" r="7"/>
+    <circle cx="120" cy="176" r="7"/>
+    <circle cx="168" cy="96" r="5"/>
+  </g>
+</svg>

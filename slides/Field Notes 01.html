@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Slides" name="Field Notes No. 01" viewport="1080x1080" -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field Notes No. 01 — Newtuple</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,200;0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;1,14..32,300;1,14..32,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: #E0E0E5;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  #wrap {
+    width: 1080px; height: 1080px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.14), 0 4px 16px rgba(0,0,0,.06);
+    transform-origin: center;
+  }
+
+  .card {
+    width: 1080px; height: 1080px;
+    background: #FFFFFF;
+    position: relative;
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    padding: 80px 96px 80px;
+    overflow: hidden;
+    gap: 0;
+  }
+
+  /* Faint cobalt bloom */
+  .card::before {
+    content: '';
+    position: absolute;
+    width: 640px; height: 420px;
+    top: -140px; left: -180px;
+    background: radial-gradient(ellipse, rgba(0,71,171,0.05) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Ghost watermark */
+  .watermark {
+    position: absolute;
+    bottom: -20px; right: 44px;
+    font-size: 540px;
+    font-weight: 700;
+    letter-spacing: -0.07em;
+    color: rgba(0,0,0,0.025);
+    line-height: 1;
+    pointer-events: none;
+    z-index: 0;
+    user-select: none;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+    margin-bottom: 0;
+  }
+
+  .series-tag { display: flex; align-items: center; gap: 12px; }
+
+  .series-label {
+    font-size: 11px; font-weight: 500;
+    letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(0,0,0,0.38); white-space: nowrap;
+  }
+
+  .series-sep {
+    width: 1px; height: 13px;
+    background: rgba(0,0,0,0.16); flex-shrink: 0;
+  }
+
+  .series-num {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.24em; text-transform: uppercase;
+    color: #0047AB; white-space: nowrap;
+  }
+
+  .logo { height: 22px; display: block; }
+  .logo-fallback {
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.14em; color: #0047AB;
+    text-transform: uppercase; display: none;
+  }
+
+  /* ── Quote ── */
+  .quote-block {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column;
+    justify-content: center;
+    padding: 42px 0 36px;
+  }
+
+  .quote-mark {
+    font-size: 96px; font-weight: 200;
+    color: #0047AB; line-height: 0.65;
+    margin-bottom: 16px; opacity: 0.65;
+  }
+
+  .quote-text {
+    font-size: 50px; font-weight: 300;
+    font-style: italic; line-height: 1.22;
+    letter-spacing: -0.022em;
+    color: #0E1320; max-width: 880px;
+    text-wrap: pretty;
+  }
+
+  .quote-text strong {
+    font-style: normal; font-weight: 600; color: #0047AB;
+  }
+
+  .attribution {
+    margin-top: 26px;
+    display: flex; align-items: center;
+    gap: 14px; white-space: nowrap;
+  }
+
+  .attr-line {
+    width: 24px; height: 1.5px;
+    background: #0047AB; flex-shrink: 0;
+  }
+
+  .attr-text {
+    font-size: 11px; font-weight: 400;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    color: rgba(0,0,0,0.32);
+  }
+
+  /* ── Checklist ── */
+  .checklist-block { position: relative; z-index: 2; display: flex; flex-direction: column; height: 100%; }
+
+  .checklist-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; padding-bottom: 12px;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+  }
+
+  .checklist-label {
+    font-size: 10px; font-weight: 500;
+    letter-spacing: 0.28em; text-transform: uppercase;
+    color: rgba(0,0,0,0.28); white-space: nowrap;
+  }
+
+  .checklist-progress {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.14em; color: #0047AB; white-space: nowrap;
+  }
+
+  .checklist { display: flex; flex-direction: column; flex: 1; height: 100%; }
+
+  .check-row {
+    display: grid;
+    grid-template-columns: 22px 28px 1fr;
+    align-items: center;
+    gap: 18px;
+    flex: 1;
+    padding: 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    position: relative;
+  }
+
+  .check-row.is-done::after {
+    content: '';
+    position: absolute;
+    left: -96px; right: -96px; top: 0; bottom: 0;
+    background: rgba(0,71,171,0.04);
+    pointer-events: none; z-index: -1;
+  }
+
+  .row-num {
+    font-size: 10px; font-weight: 500;
+    letter-spacing: 0.1em;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .row-num.done    { color: #0047AB; }
+  .row-num.pending { color: rgba(0,0,0,0.2); }
+
+  .row-text {
+    font-size: 19px; font-weight: 400;
+    line-height: 1.4; letter-spacing: -0.008em;
+  }
+  .row-text.done    { color: #0E1320; text-decoration: line-through; text-decoration-color: rgba(0,71,171,0.4); text-decoration-thickness: 1.5px; }
+  .row-text.pending { color: rgba(0,0,0,0.38); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="card">
+
+    <div class="watermark">01</div>
+
+    <!-- Header -->
+    <header class="header">
+      <div class="series-tag">
+        <span class="series-label">Field Notes</span>
+        <span class="series-sep"></span>
+        <span class="series-num">No. 01</span>
+      </div>
+      <img class="logo" src="../assets/logo-cobalt.png" alt="Newtuple"
+        onerror="this.style.display='none';document.querySelector('.logo-fallback').style.display='block'">
+      <span class="logo-fallback">Newtuple</span>
+    </header>
+
+    <!-- Quote -->
+    <div class="quote-block">
+      <div class="quote-mark">&#8220;</div>
+      <p class="quote-text">We do not launch an agent for a client until it can answer <strong>five questions.</strong></p>
+      <div class="attribution">
+        <span class="attr-line"></span>
+        <span class="attr-text">Newtuple &nbsp;&middot;&nbsp; On agent readiness</span>
+      </div>
+    </div>
+
+    <!-- Checklist -->
+    <div class="checklist-block">
+      <div class="checklist-header">
+        <span class="checklist-label">The five questions</span>
+        <span class="checklist-progress">1 of 5</span>
+      </div>
+      <div class="checklist">
+
+        <div class="check-row is-done">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <rect width="22" height="22" rx="4" fill="#0047AB"></rect>
+            <path d="M5.5 11.5L9.5 15.5L16.5 7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+          <span class="row-num done">01</span>
+          <span class="row-text done">Can it explain exactly what it will and won't do?</span>
+        </div>
+
+        <div class="check-row">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <rect x="0.6" y="0.6" width="20.8" height="20.8" rx="3.4" stroke="rgba(0,0,0,0.18)" stroke-width="1.2"></rect>
+          </svg>
+          <span class="row-num pending">02</span>
+          <span class="row-text pending">Can it handle inputs it was never trained for?</span>
+        </div>
+
+        <div class="check-row">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <rect x="0.6" y="0.6" width="20.8" height="20.8" rx="3.4" stroke="rgba(0,0,0,0.18)" stroke-width="1.2"></rect>
+          </svg>
+          <span class="row-num pending">03</span>
+          <span class="row-text pending">Does it know when to stop and escalate to a human?</span>
+        </div>
+
+        <div class="check-row">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <rect x="0.6" y="0.6" width="20.8" height="20.8" rx="3.4" stroke="rgba(0,0,0,0.18)" stroke-width="1.2"></rect>
+          </svg>
+          <span class="row-num pending">04</span>
+          <span class="row-text pending">Can every action be logged, audited and reversed?</span>
+        </div>
+
+        <div class="check-row">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <rect x="0.6" y="0.6" width="20.8" height="20.8" rx="3.4" stroke="rgba(0,0,0,0.18)" stroke-width="1.2"></rect>
+          </svg>
+          <span class="row-num pending">05</span>
+          <span class="row-text pending">Has it been tested against its own failure modes?</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function fit() {
+    const s = Math.min(
+      (window.innerWidth - 60) / 1080,
+      (window.innerHeight - 60) / 1080
+    );
+    document.getElementById('wrap').style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  requestAnimationFrame(fit);
+</script>
+</body>
+</html>

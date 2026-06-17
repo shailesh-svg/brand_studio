@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Components" name="Buttons" subtitle="Primary / secondary / ghost · pill" viewport="700x170" --><html lang="en"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .btn{font-family:var(--font-sans);font-weight:500;font-size:15px;border-radius:9999px;padding:13px 26px;border:1.5px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all .3s cubic-bezier(.4,0,.2,1);}
+  .primary{background:var(--cobalt);color:#fff;box-shadow:0 12px 32px rgba(0,71,171,.22);}
+  .primary:hover{background:#003C90;transform:translateY(-1px);}
+  .secondary{background:#fff;color:var(--cobalt);border-color:var(--cobalt);}
+  .secondary:hover{background:rgba(0,71,171,.05);}
+  .ghost{background:transparent;color:var(--gray-600);}
+  .ghost:hover{color:var(--cobalt);}
+  .lab{font-family:var(--font-mono);font-size:10px;color:var(--gray-400);}
+  .col2{display:flex;flex-direction:column;gap:8px;align-items:flex-start;}
+</style>
+</head><body>
+<div class="card" style="gap:18px;">
+  <div class="cap">Buttons</div>
+  <div class="row" style="gap:18px;align-items:flex-start;">
+    <div class="col2"><button class="btn primary"><i data-lucide="arrow-right" style="width:16px;height:16px;"></i>Talk to Our Experts</button><span class="lab">Primary CTA · cobalt · pill</span></div>
+    <div class="col2"><button class="btn secondary">Explore Accelerators</button><span class="lab">Secondary · blue border</span></div>
+    <div class="col2"><button class="btn ghost">Learn More</button><span class="lab">Ghost / text</span></div>
+  </div>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body></html>

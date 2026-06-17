@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Newtuple Brand Studio</title>
+
+  <!-- Inter — brand font, loaded before tokens (per design system) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="colors_and_type.css" />
+  <link rel="stylesheet" href="studio.css" />
+
+  <!-- Export libraries (CDN, UMD globals) -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- ============ HEADER ============ -->
+    <header class="app-header">
+      <div class="brand-lockup">
+        <img id="hdr-logo" alt="Newtuple" />
+        <span class="brand-sep"></span>
+        <span class="brand-studio-tag">Brand Studio</span>
+      </div>
+      <div class="header-meta">
+        <button id="library-open" class="hdr-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+          <span>Library</span>
+        </button>
+        <span class="nt-label">Build Your Agentic Enterprise</span>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <!-- ============ LEFT: ASSET PICKER ============ -->
+      <aside class="rail rail-left">
+        <div class="rail-section-title nt-label">Asset type</div>
+        <nav id="kind-list" class="kind-list"></nav>
+
+        <div class="rail-section-title nt-label" style="margin-top:var(--space-6)">Theme</div>
+        <div id="theme-toggle" class="seg-toggle"></div>
+
+        <div class="rail-section-title nt-label" style="margin-top:var(--space-6)">Elements</div>
+        <div class="rail-hint">Click to drop onto the canvas · drag, resize &amp; recolor</div>
+        <div id="elements-palette" class="elements-palette"></div>
+
+        <div class="rail-foot">
+          <div class="nt-label" style="margin-bottom:6px">Tokens</div>
+          <div class="token-dots">
+            <span class="tdot" style="background:var(--cobalt)" title="Cobalt #0047AB"></span>
+            <span class="tdot" style="background:var(--cyan)" title="Cyan #00B8D9"></span>
+            <span class="tdot" style="background:var(--navy-700)" title="Navy"></span>
+            <span class="tdot" style="background:var(--gray-200);border:1px solid var(--gray-300)" title="Gray 200"></span>
+            <span class="tdot" style="background:var(--success)" title="Success"></span>
+            <span class="tdot" style="background:var(--highlight)" title="Highlight"></span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ============ CENTER: PREVIEW ============ -->
+      <main class="stage-wrap">
+        <div class="stage-toolbar">
+          <div id="frame-tabs" class="frame-tabs"></div>
+          <div class="stage-tools">
+            <button id="zoom-fit" class="ghost-btn" title="Fit to screen">Fit</button>
+            <span id="frame-dims" class="dims-readout nt-mono"></span>
+          </div>
+        </div>
+        <div id="stage" class="stage">
+          <div id="stage-scaler" class="stage-scaler"></div>
+        </div>
+      </main>
+
+      <!-- ============ RIGHT: CONTENT + EXPORT ============ -->
+      <aside class="rail rail-right">
+        <div class="rail-scroll">
+          <div class="rail-section-title nt-label">Content</div>
+          <div id="form-host" class="form-host"></div>
+        </div>
+        <div class="export-bar">
+          <div class="rail-section-title nt-label">Export</div>
+          <div id="export-buttons" class="export-buttons"></div>
+          <div id="export-status" class="export-status"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets-embedded.js"></script>
+  <script src="starters.js"></script>
+  <script src="references.js"></script>
+  <script src="studio.js"></script>
+</body>
+</html>

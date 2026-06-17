@@ -1,0 +1,8 @@
+<svg width="360" height="120" viewBox="0 0 360 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Newtuple chevron flow cue">
+  <g fill="none" stroke="#0047AB" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M40 30 L96 60 L40 90" opacity="0.35"/>
+    <path d="M120 30 L176 60 L120 90" opacity="0.6"/>
+    <path d="M200 30 L256 60 L200 90" opacity="0.85"/>
+    <path d="M280 30 L336 60 L280 90" stroke="#00B8D9"/>
+  </g>
+</svg>

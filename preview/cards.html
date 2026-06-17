@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Components" name="Cards" subtitle="Rounded-3xl, hover→cobalt border" viewport="700x230" --><html lang="en"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .ncard{background:#fff;border:1px solid var(--border);border-radius:24px;padding:24px;flex:1;transition:border-color .3s,box-shadow .3s;cursor:pointer;}
+  .ncard:hover{border-color:var(--cobalt);box-shadow:0 12px 32px rgba(0,71,171,.1);}
+  .ic{width:42px;height:42px;border-radius:12px;background:rgba(0,71,171,.08);display:flex;align-items:center;justify-content:center;color:var(--cobalt);margin-bottom:14px;}
+  .t{font-weight:600;font-size:17px;color:var(--fg-1);margin:0 0 6px;}
+  .d{font-weight:300;font-size:14px;line-height:1.6;color:var(--gray-600);margin:0;}
+</style>
+</head><body>
+<div class="card" style="gap:14px;background:var(--gray-50);">
+  <div class="cap">Cards — rounded-3xl · border-gray-200 · hover→cobalt border</div>
+  <div class="row" style="gap:16px;align-items:stretch;">
+    <div class="ncard"><div class="ic"><i data-lucide="bot" style="width:22px;height:22px;"></i></div><p class="t">Build AI Agents</p><p class="d">Design, build &amp; operate enterprise AI agents with governance and observability.</p></div>
+    <div class="ncard"><div class="ic"><i data-lucide="layout-template" style="width:22px;height:22px;"></i></div><p class="t">Build AI Apps</p><p class="d">Strategy, architecture and engineering for AI-first product teams.</p></div>
+  </div>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body></html>

@@ -1,0 +1,11 @@
+<svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Newtuple floating dot field">
+  <defs>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="8" cy="8" r="3" fill="#0047AB" opacity="0.55"/>
+    </pattern>
+  </defs>
+  <rect width="320" height="320" fill="url(#dots)"/>
+  <circle cx="92" cy="84" r="9" fill="#00B8D9"/>
+  <circle cx="232" cy="196" r="7" fill="#0047AB"/>
+  <circle cx="168" cy="252" r="11" fill="#2E6FD6" opacity="0.5"/>
+</svg>

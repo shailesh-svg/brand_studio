@@ -1,0 +1,38 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Newtuple agentic perspective data-grid background">
+  <defs>
+    <radialGradient id="hero" cx="50%" cy="118%" r="95%">
+      <stop offset="0" stop-color="#2C2BAD"/>
+      <stop offset="32%" stop-color="#1D2B74"/>
+      <stop offset="64%" stop-color="#111145"/>
+      <stop offset="100%" stop-color="#02020A"/>
+    </radialGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#02020A" stop-opacity="0.9"/>
+      <stop offset="40%" stop-color="#02020A" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#hero)"/>
+  <g stroke="rgba(120,150,255,0.18)" stroke-width="1.25" fill="none">
+    <!-- converging verticals (vanishing point 600,262) -->
+    <line x1="-120" y1="675" x2="600" y2="262"/>
+    <line x1="60"   y1="675" x2="600" y2="262"/>
+    <line x1="240"  y1="675" x2="600" y2="262"/>
+    <line x1="420"  y1="675" x2="600" y2="262"/>
+    <line x1="600"  y1="675" x2="600" y2="262"/>
+    <line x1="780"  y1="675" x2="600" y2="262"/>
+    <line x1="960"  y1="675" x2="600" y2="262"/>
+    <line x1="1140" y1="675" x2="600" y2="262"/>
+    <line x1="1320" y1="675" x2="600" y2="262"/>
+    <!-- receding horizontals (denser near the horizon) -->
+    <line x1="0" y1="675" x2="1200" y2="675"/>
+    <line x1="0" y1="556" x2="1200" y2="556"/>
+    <line x1="0" y1="462" x2="1200" y2="462"/>
+    <line x1="0" y1="392" x2="1200" y2="392"/>
+    <line x1="0" y1="342" x2="1200" y2="342"/>
+    <line x1="0" y1="306" x2="1200" y2="306"/>
+    <line x1="0" y1="280" x2="1200" y2="280"/>
+  </g>
+  <!-- horizon glow -->
+  <ellipse cx="600" cy="262" rx="430" ry="26" fill="#7E9CFF" opacity="0.18"/>
+  <rect width="1200" height="220" fill="url(#fade)"/>
+</svg>

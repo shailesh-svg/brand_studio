@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Components" name="Navigation" subtitle="Translucent blur nav on dark" viewport="700x230" --><html lang="en"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .stage{position:relative;height:160px;border-radius:16px;overflow:hidden;background:radial-gradient(120% 90% at 50% 120%,#2C2BAD,#1D2B74 32%,#111145 64%,#02020A 100%);}
+  .nav{position:absolute;top:14px;left:14px;right:14px;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-radius:9999px;background:rgba(255,255,255,.1);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.16);}
+  .nav img{height:18px;}
+  .links{display:flex;gap:22px;}
+  .links a{color:rgba(255,255,255,.8);font-size:13px;font-weight:400;text-decoration:none;}
+  .cta{background:#fff;color:#0047AB;font-size:13px;font-weight:500;padding:8px 16px;border-radius:9999px;}
+</style>
+</head><body>
+<div class="card" style="gap:12px;">
+  <div class="cap">Navigation — fixed top · translucent white · backdrop blur</div>
+  <div class="stage">
+    <div class="nav">
+      <img src="../assets/logo-white.png" alt="Newtuple">
+      <div class="links"><a>Services</a><a>Accelerators</a><a>Industries</a><a>Company</a></div>
+      <span class="cta">Contact Us</span>
+    </div>
+  </div>
+</div>
+</body></html>

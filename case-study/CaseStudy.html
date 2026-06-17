@@ -1,0 +1,1368 @@
+<!doctype html>
+<!-- @dsCard group="Brand" name="Case Study Deck" subtitle="8-slide case study companion to the capability one-pager" viewport="1920x1080" -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Newtuple · Case Study · Governed AI for Retail</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="colors_and_type.css">
+
+<style>
+  /* Avoid flash before deck-stage upgrades */
+  deck-stage:not(:defined) { visibility: hidden; }
+
+  /* ============================================================
+     CASE STUDY DESIGN SYSTEM (matches one-pager)
+     ============================================================ */
+  :root {
+    --c-cobalt: #0047AB;
+    --c-cobalt-dark: #003582;
+    --c-cobalt-soft: #E2EBF7;
+    --c-cobalt-tint: #F4F7FC;
+    --c-bg: #FFFFFF;
+    --c-bg-2: #FAFBFC;
+    --c-border: #E2E6EC;
+    --c-border-strong: #CBD2DC;
+    --c-ink-1: #0E1320;
+    --c-ink-2: #374151;
+    --c-ink-3: #6B7686;
+    --c-ink-4: #9AA4B2;
+  }
+
+  /* Slide base — every section is one slide */
+  deck-stage > section {
+    background: var(--c-bg);
+    color: var(--c-ink-1);
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+  }
+  /* Dark-themed slides */
+  deck-stage > section.dark {
+    background: var(--c-cobalt-dark);
+    color: #fff;
+  }
+
+  /* ── Chrome (per slide) ─────────────────────────── */
+  .chrome {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 36px 80px 0;
+    pointer-events: none;
+  }
+  .chrome__logo {
+    height: 28px;
+    width: auto;
+    display: block;
+  }
+  .chrome__meta {
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--c-ink-3);
+    text-transform: uppercase;
+  }
+  section.dark .chrome__meta {
+    color: rgba(255,255,255,0.55);
+  }
+
+  .footbar {
+    position: absolute;
+    left: 80px; right: 80px; bottom: 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: var(--c-ink-4);
+  }
+  section.dark .footbar { color: rgba(255,255,255,0.45); }
+  .footbar__page {
+    font-feature-settings: 'tnum';
+    letter-spacing: 0.15em;
+  }
+
+  /* ── Section labels / headings ──────────────────── */
+  .eyebrow {
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--c-cobalt);
+  }
+  section.dark .eyebrow { color: #BFD2EF; }
+
+  .h1 {
+    font-weight: 300;
+    font-size: 64px;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: var(--c-ink-1);
+    margin: 0;
+  }
+  section.dark .h1 { color: #fff; }
+
+  .h2 {
+    font-weight: 400;
+    font-size: 48px;
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    color: var(--c-ink-1);
+    margin: 0;
+  }
+  section.dark .h2 { color: #fff; }
+
+  .lead {
+    font-weight: 300;
+    font-size: 22px;
+    line-height: 1.5;
+    color: var(--c-ink-2);
+    margin: 0;
+    max-width: 1100px;
+  }
+  section.dark .lead { color: rgba(255,255,255,0.78); }
+
+  .body {
+    font-weight: 300;
+    font-size: 17px;
+    line-height: 1.6;
+    color: var(--c-ink-2);
+  }
+  section.dark .body { color: rgba(255,255,255,0.78); }
+
+  .label-sm {
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--c-cobalt);
+  }
+
+  /* ── Reusable card primitives ────────────────────── */
+  .card {
+    background: var(--c-bg);
+    border: 1px solid var(--c-border);
+    border-radius: 12px;
+    padding: 28px;
+  }
+  .card--tint {
+    background: var(--c-bg-2);
+  }
+
+  /* Index number */
+  .index-num {
+    font-weight: 200;
+    font-size: 64px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--c-cobalt);
+  }
+  .index-num--sm {
+    font-size: 38px;
+  }
+
+  /* Pipeline step indicator (number + arrow) */
+  .step-num {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--c-cobalt);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: 0.02em;
+    flex: 0 0 auto;
+  }
+
+  /* Confidence chips */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  .chip--green  { background: #E6F6EF; color: #1FA971; }
+  .chip--yellow { background: #FDF6E3; color: #B97700; }
+  .chip--red    { background: #FBEAEA; color: #C53030; }
+
+  /* ============================================================
+     SLIDE 1 — COVER
+     ============================================================ */
+  .s1-grid {
+    position: absolute; inset: 0;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+  }
+  .s1-left {
+    background: var(--c-cobalt-dark);
+    padding: 110px 90px 90px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+  }
+  .s1-left::before {
+    /* subtle geometric grid overlay */
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px) 0 0 / 100% 80px,
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px) 0 0 / 80px 100%;
+    opacity: 0.6;
+    mask-image: radial-gradient(120% 90% at 0% 100%, #000 0%, transparent 80%);
+  }
+  .s1-eyebrow {
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 4px;
+    color: rgba(255,255,255,0.65);
+    text-transform: uppercase;
+    z-index: 1;
+  }
+  .s1-title {
+    font-weight: 200;
+    font-size: 88px;
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    color: #fff;
+    margin: 24px 0 0;
+    z-index: 1;
+  }
+  .s1-title em {
+    font-weight: 400;
+    font-style: normal;
+    color: #BFD2EF;
+  }
+  .s1-sub {
+    margin-top: 28px;
+    font-weight: 300;
+    font-size: 21px;
+    line-height: 1.5;
+    color: rgba(255,255,255,0.78);
+    max-width: 640px;
+    z-index: 1;
+  }
+  .s1-meta {
+    display: flex; align-items: center; gap: 16px;
+    font-weight: 500;
+    font-size: 14px;
+    letter-spacing: 2.5px;
+    color: rgba(255,255,255,0.55);
+    text-transform: uppercase;
+    z-index: 1;
+  }
+  .s1-meta__dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: rgba(255,255,255,0.35);
+  }
+  .s1-wordmark {
+    display: flex; align-items: center; gap: 14px;
+    z-index: 1;
+  }
+  .s1-wordmark img { height: 34px; }
+  .s1-wordmark__tag {
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.55);
+    text-transform: uppercase;
+    padding-left: 14px;
+    border-left: 1px solid rgba(255,255,255,0.18);
+  }
+
+  .s1-right {
+    background: var(--c-bg);
+    padding: 110px 90px 90px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .s1-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .s1-flow__item {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--c-border);
+  }
+  .s1-flow__item:last-child { border-bottom: none; padding-bottom: 0; }
+  .s1-flow__n {
+    flex: 0 0 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1.5px solid var(--c-cobalt);
+    color: var(--c-cobalt);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .s1-flow__body { flex: 1; }
+  .s1-flow__title {
+    font-weight: 500;
+    font-size: 22px;
+    color: var(--c-ink-1);
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+  .s1-flow__sub {
+    font-weight: 400;
+    font-size: 14px;
+    color: var(--c-ink-3);
+  }
+  .s1-cta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--c-cobalt);
+    text-transform: uppercase;
+  }
+  .s1-cta::before {
+    content: '';
+    width: 28px; height: 1px;
+    background: var(--c-cobalt);
+  }
+
+  /* ============================================================
+     STANDARD SLIDE LAYOUT
+     ============================================================ */
+  .slide-body {
+    position: absolute;
+    top: 130px;
+    left: 80px; right: 80px; bottom: 90px;
+    display: flex;
+    flex-direction: column;
+  }
+  .slide-body__spacer { flex: 1; }
+  .slide-title {
+    margin-bottom: 8px;
+    display: flex; align-items: baseline; gap: 18px;
+  }
+  .slide-title__num {
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: var(--c-cobalt);
+  }
+  .slide-title__lead {
+    margin-top: 16px;
+    font-weight: 300;
+    font-size: 18px;
+    line-height: 1.55;
+    color: var(--c-ink-3);
+    max-width: 1100px;
+  }
+
+  /* ============================================================
+     SLIDE 2 — Problem cards
+     ============================================================ */
+  .s2-grid {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .problem-card {
+    background: var(--c-bg-2);
+    border-top: 3px solid var(--c-cobalt);
+    border-radius: 0 0 12px 12px;
+    padding: 32px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .problem-card__n {
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 2.5px;
+    color: var(--c-cobalt);
+  }
+  .problem-card__title {
+    font-weight: 600;
+    font-size: 22px;
+    line-height: 1.25;
+    color: var(--c-ink-1);
+    letter-spacing: -0.01em;
+  }
+  .problem-card__body {
+    font-weight: 300;
+    font-size: 15.5px;
+    line-height: 1.55;
+    color: var(--c-ink-2);
+  }
+  .s2-design-intent {
+    margin-top: auto;
+    padding: 20px 28px;
+    background: var(--c-cobalt-soft);
+    border-radius: 8px;
+    display: flex; align-items: baseline; gap: 20px;
+  }
+  .s2-design-intent__label {
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 2.5px;
+    color: var(--c-cobalt-dark);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .s2-design-intent__body {
+    font-weight: 400;
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--c-ink-2);
+  }
+
+  /* ============================================================
+     SLIDE 3 — Before / After
+     ============================================================ */
+  .s3-split {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: 1fr;
+    gap: 32px;
+  }
+  .ba-col {
+    border-radius: 12px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .ba-col--before {
+    background: var(--c-bg-2);
+    border: 1px solid var(--c-border);
+  }
+  .ba-col--after {
+    background: var(--c-cobalt-dark);
+    color: #fff;
+  }
+  .ba-col__label {
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .ba-col--before .ba-col__label { color: var(--c-ink-3); }
+  .ba-col--after  .ba-col__label { color: #BFD2EF; }
+  .ba-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .ba-list li {
+    font-weight: 400;
+    font-size: 17px;
+    line-height: 1.45;
+    padding: 14px 0 14px 28px;
+    position: relative;
+    border-top: 1px solid var(--c-border);
+  }
+  .ba-list li::before {
+    position: absolute;
+    left: 0; top: 17px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+  }
+  .ba-col--before .ba-list li::before { content: ''; background: var(--c-ink-4); }
+  .ba-col--after  .ba-list li::before { content: ''; background: #00B8D9; }
+  .ba-col--before .ba-list li { color: var(--c-ink-2); }
+  .ba-col--after  .ba-list li { color: rgba(255,255,255,0.88); border-top-color: rgba(255,255,255,0.15); }
+
+  .s3-principle {
+    margin-top: auto;
+    padding: 22px 28px;
+    background: var(--c-cobalt-soft);
+    border-radius: 8px;
+    display: flex; align-items: baseline; gap: 20px;
+  }
+  .s3-principle__label {
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 2.5px;
+    color: var(--c-cobalt-dark);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .s3-principle__body {
+    font-weight: 500;
+    font-size: 18px;
+    color: var(--c-ink-1);
+    letter-spacing: -0.005em;
+  }
+
+  /* ============================================================
+     SLIDE 4 — Architecture (4-layer)
+     ============================================================ */
+  .s4-arch {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 24px;
+  }
+  .arch-step {
+    background: var(--c-bg);
+    border: 1px solid var(--c-border);
+    border-radius: 12px;
+    padding: 24px 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: relative;
+  }
+  .arch-step__head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .arch-step__n {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--c-cobalt);
+    color: #fff;
+    font-weight: 600;
+    font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .arch-step__title {
+    font-weight: 600;
+    font-size: 22px;
+    color: var(--c-ink-1);
+    letter-spacing: -0.01em;
+  }
+  .arch-step__body {
+    font-weight: 300;
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: var(--c-ink-2);
+  }
+  .arch-step__chip {
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid var(--c-border);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--c-cobalt);
+    text-transform: uppercase;
+  }
+  .s4-stack {
+    margin-top: auto;
+    padding: 18px 24px;
+    background: var(--c-bg-2);
+    border-radius: 8px;
+    border-left: 3px solid var(--c-cobalt);
+  }
+  .s4-stack__label {
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    color: var(--c-cobalt);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .s4-stack__body {
+    font-weight: 400;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--c-ink-2);
+  }
+  .s4-stack__body strong { color: var(--c-ink-1); font-weight: 600; }
+
+  /* ============================================================
+     SLIDE 5 — State machine timeline
+     ============================================================ */
+  .s5-flow {
+    margin-top: 56px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    position: relative;
+  }
+  .s5-flow::before {
+    content: '';
+    position: absolute;
+    top: 22px;
+    left: 6%;
+    right: 6%;
+    height: 2px;
+    background: var(--c-cobalt-soft);
+    z-index: 0;
+  }
+  .state-step {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    z-index: 1;
+  }
+  .state-step__n {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid var(--c-cobalt);
+    color: var(--c-cobalt);
+    font-weight: 600;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .state-step__title {
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--c-ink-1);
+    letter-spacing: -0.005em;
+    line-height: 1.2;
+  }
+  .state-step__body {
+    font-weight: 300;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--c-ink-2);
+  }
+
+  /* ============================================================
+     SLIDE 6 — Gated delivery
+     ============================================================ */
+  .s6-grid {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 24px;
+  }
+  .gate-card {
+    background: var(--c-bg);
+    border: 1px solid var(--c-border);
+    border-radius: 12px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .gate-card--pilot {
+    background: var(--c-cobalt-soft);
+    border-color: var(--c-cobalt-soft);
+  }
+  .gate-card--scale {
+    background: var(--c-cobalt-dark);
+    color: #fff;
+    border: none;
+  }
+  .gate-card__head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px;
+  }
+  .gate-card__name {
+    font-weight: 600;
+    font-size: 22px;
+    color: var(--c-ink-1);
+    letter-spacing: -0.01em;
+  }
+  .gate-card--scale .gate-card__name { color: #fff; }
+  .gate-card__dur {
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--c-cobalt);
+    text-transform: uppercase;
+  }
+  .gate-card--scale .gate-card__dur { color: #BFD2EF; }
+  .gate-card__lead {
+    font-weight: 500;
+    font-size: 16px;
+    color: var(--c-ink-1);
+    line-height: 1.35;
+    margin-bottom: 4px;
+  }
+  .gate-card--scale .gate-card__lead { color: #fff; }
+  .gate-card__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .gate-card__list li {
+    font-weight: 300;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--c-ink-2);
+    padding-left: 16px;
+    position: relative;
+  }
+  .gate-card__list li::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 8px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--c-cobalt);
+  }
+  .gate-card--scale .gate-card__list li { color: rgba(255,255,255,0.85); }
+  .gate-card--scale .gate-card__list li::before { background: #00B8D9; }
+
+  .s6-rule {
+    margin-top: auto;
+    padding-top: 22px;
+    border-top: 1px solid var(--c-border);
+    font-weight: 400;
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: var(--c-ink-3);
+  }
+  .s6-rule strong { color: var(--c-cobalt); font-weight: 600; }
+
+  /* ============================================================
+     SLIDE 7 — Impact
+     ============================================================ */
+  .s7-row {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+  .impact-tile {
+    background: var(--c-cobalt-dark);
+    color: #fff;
+    border-radius: 12px;
+    padding: 28px 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .impact-tile__value {
+    font-weight: 200;
+    font-size: 64px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: #fff;
+  }
+  .impact-tile__value .unit {
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: rgba(255,255,255,0.7);
+  }
+  .impact-tile__label {
+    font-weight: 600;
+    font-size: 14.5px;
+    line-height: 1.35;
+    color: #fff;
+  }
+  .impact-tile__ctx {
+    font-weight: 300;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: rgba(255,255,255,0.7);
+  }
+
+  .s7-table {
+    margin-top: 28px;
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .s7-table th, .s7-table td {
+    text-align: left;
+    padding: 16px 20px;
+    font-weight: 400;
+    font-size: 15px;
+    border-bottom: 1px solid var(--c-border);
+    vertical-align: top;
+  }
+  .s7-table th {
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    color: var(--c-ink-3);
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--c-cobalt);
+    padding-bottom: 14px;
+  }
+  .s7-table td:first-child {
+    font-weight: 600;
+    color: var(--c-ink-1);
+    width: 22%;
+  }
+  .s7-table td:nth-child(2) { color: var(--c-ink-3); width: 39%; }
+  .s7-table td:nth-child(3) { color: var(--c-ink-1); width: 39%; }
+  .s7-table tr:last-child td { border-bottom: none; }
+
+  /* ============================================================
+     SLIDE 8 — Next steps / closer
+     ============================================================ */
+  .s8-body {
+    position: absolute;
+    inset: 130px 80px 90px;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 60px;
+  }
+  .s8-left { display: flex; flex-direction: column; }
+  .s8-right { display: flex; flex-direction: column; gap: 18px; justify-content: center; }
+  .s8-steps {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .next-card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 20px 22px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .next-card__n {
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 2.5px;
+    color: #BFD2EF;
+  }
+  .next-card__title {
+    font-weight: 600;
+    font-size: 17px;
+    line-height: 1.3;
+    color: #fff;
+  }
+  .next-card__body {
+    font-weight: 300;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: rgba(255,255,255,0.78);
+  }
+  .pillar-list {
+    list-style: none;
+    margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .pillar-list li {
+    font-weight: 400;
+    font-size: 17px;
+    line-height: 1.4;
+    color: rgba(255,255,255,0.88);
+    padding-left: 22px;
+    position: relative;
+  }
+  .pillar-list li::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 9px;
+    width: 10px; height: 2px;
+    background: #00B8D9;
+  }
+  .s8-contact {
+    margin-top: 36px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    display: flex; align-items: baseline; justify-content: space-between;
+    font-weight: 500;
+    font-size: 14px;
+    color: rgba(255,255,255,0.78);
+    letter-spacing: 0.06em;
+  }
+  .s8-contact strong { color: #fff; font-weight: 600; }
+
+</style>
+</head>
+<body>
+
+<deck-stage width="1920" height="1080">
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SLIDE 1 · COVER
+       ═══════════════════════════════════════════════════════════ -->
+  <section data-label="Cover" class="dark" style="background:#fff">
+    <div class="s1-grid">
+      <div class="s1-left">
+        <div class="s1-wordmark">
+          <img src="assets/logo-white.png" alt="Newtuple">
+          <span class="s1-wordmark__tag">Case Study</span>
+        </div>
+
+        <div>
+          <div class="s1-eyebrow">Governed agentic AI · Retail operations</div>
+          <h1 class="s1-title">AI-powered<br>product resolution<br><em>for retail.</em></h1>
+          <p class="s1-sub">A governed agentic workflow built for a multi-brand retailer. Ambiguous product identification turned into a closed-loop, auditable system.</p>
+        </div>
+
+        <div class="s1-meta">
+          <span>Multi-brand retail operations</span>
+          <span class="s1-meta__dot"></span>
+          <span>2026</span>
+        </div>
+      </div>
+
+      <div class="s1-right">
+        <div>
+          <div class="label-sm" style="margin-bottom:24px">How it works</div>
+          <div class="s1-flow">
+            <div class="s1-flow__item">
+              <div class="s1-flow__n">01</div>
+              <div class="s1-flow__body">
+                <div class="s1-flow__title">Photo capture on mobile</div>
+                <div class="s1-flow__sub">Store associate captures the item on Android.</div>
+              </div>
+            </div>
+            <div class="s1-flow__item">
+              <div class="s1-flow__n">02</div>
+              <div class="s1-flow__body">
+                <div class="s1-flow__title">AI feature extraction and catalogue match</div>
+                <div class="s1-flow__sub">Features extracted, EDW queried, ranked candidates returned.</div>
+              </div>
+            </div>
+            <div class="s1-flow__item">
+              <div class="s1-flow__n">03</div>
+              <div class="s1-flow__body">
+                <div class="s1-flow__title">Confidence-gated human review</div>
+                <div class="s1-flow__sub">Green auto-confirms. Yellow and red route to a resolver queue.</div>
+              </div>
+            </div>
+            <div class="s1-flow__item">
+              <div class="s1-flow__n">04</div>
+              <div class="s1-flow__body">
+                <div class="s1-flow__title">Governed action and full audit trail</div>
+                <div class="s1-flow__sub">Print triggered, every transition recorded end to end.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="s1-cta">Build your agentic enterprise</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SLIDE 2 · PROBLEM
+       ═══════════════════════════════════════════════════════════ -->
+  <section data-label="Problem">
+    <div class="chrome">
+      <img src="assets/logo-cobalt.png" alt="Newtuple" class="chrome__logo">
+      <div class="chrome__meta">Case study · The problem</div>
+    </div>
+    <div class="slide-body">
+      <div class="slide-title">
+        <span class="slide-title__num">01</span>
+      </div>
+      <h2 class="h2" style="max-width:1500px">When product identification breaks down at scale.</h2>
+      <p class="slide-title__lead">For any retailer managing thousands of SKUs across stores and brands, unidentified or mislabelled products are a daily operational reality. Each one costs time, accuracy, and trust.</p>
+
+      <div class="s2-grid">
+        <div class="problem-card">
+          <div class="problem-card__n">01</div>
+          <div class="problem-card__title">No structured identification workflow</div>
+          <div class="problem-card__body">Store teams had no governed process for ambiguous, missing, or damaged labels. Every resolution depended on individual knowledge, manual lookups, and phone calls, with no record of how decisions were made.</div>
+        </div>
+        <div class="problem-card">
+          <div class="problem-card__n">02</div>
+          <div class="problem-card__title">Uncontrolled exception handling</div>
+          <div class="problem-card__body">When a match was uncertain, there was no escalation path. Cases were resolved by whoever was available. No evidence trail, no quality gate, no way to learn from patterns across incidents.</div>
+        </div>
+        <div class="problem-card">
+          <div class="problem-card__n">03</div>
+          <div class="problem-card__title">Downstream actions without a confidence signal</div>
+          <div class="problem-card__body">Fulfilment and labelling actions were triggered without an upstream confidence check. Errors surfaced only after the fact, compounding both the time cost and the reputational risk of acting on wrong product data.</div>
+        </div>
+      </div>
+
+      <div class="s2-design-intent">
+        <span class="s2-design-intent__label">Design intent</span>
+        <span class="s2-design-intent__body">Replace ad-hoc guesswork with an auditable, AI-assisted workflow that keeps a human in the loop for every uncertain decision.</span>
+      </div>
+    </div>
+    <div class="footbar"><span>Newtuple · Multi-brand retail case study</span><span class="footbar__page">02 / 08</span></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SLIDE 3 · BEFORE / AFTER
+       ═══════════════════════════════════════════════════════════ -->
+  <section data-label="Before / After">
+    <div class="chrome">
+      <img src="assets/logo-cobalt.png" alt="Newtuple" class="chrome__logo">
+      <div class="chrome__meta">Case study · The shift</div>
+    </div>
+    <div class="slide-body">
+      <div class="slide-title">
+        <span class="slide-title__num">02</span>
+      </div>
+      <h2 class="h2" style="max-width:1500px">From manual chaos to governed exception management.</h2>
+      <p class="slide-title__lead">The same store associate now works through a structured flow. AI handles the lookup, humans own the decision.</p>
+
+      <div class="s3-split">
+        <div class="ba-col ba-col--before">
+          <div class="ba-col__label">Before</div>
+          <ul class="ba-list">
+            <li>Manual SKU lookup across disconnected systems.</li>
+            <li>Ambiguous matches escalated over phone or email.</li>
+            <li>No confidence signal. Downstream errors caught only after the fact.</li>
+          </ul>
+        </div>
+        <div class="ba-col ba-col--after">
+          <div class="ba-col__label">After</div>
+          <ul class="ba-list">
+            <li>AI photo capture and feature extraction on mobile.</li>
+            <li>Green / yellow / red confidence gating with a resolver queue.</li>
+            <li>Downstream action triggered only after associate or resolver confirmation.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="s3-principle">
+        <span class="s3-principle__label">Key principle</span>
+        <span class="s3-principle__body">AI does the identification. Humans own the confirmation. Every step is audited.</span>
+      </div>
+    </div>
+    <div class="footbar"><span>Newtuple · Multi-brand retail case study</span><span class="footbar__page">03 / 08</span></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SLIDE 4 · ARCHITECTURE
+       ═══════════════════════════════════════════════════════════ -->
+  <section data-label="Architecture">
+    <div class="chrome">
+      <img src="assets/logo-cobalt.png" alt="Newtuple" class="chrome__logo">
+      <div class="chrome__meta">Case study · Architecture</div>
+    </div>
+    <div class="slide-body">
+      <div class="slide-title">
+        <span class="slide-title__num">03</span>
+      </div>
+      <h2 class="h2" style="max-width:1500px">Four-layer architecture, capture to print.</h2>
+      <p class="slide-title__lead">Built to fit inside the client's enterprise environment. Cloud-hosted, EDW-integrated, print-broker compatible, and SSO authenticated.</p>
+
+      <div class="s4-arch">
+        <div class="arch-step">
+          <div class="arch-step__head">
+            <div class="arch-step__n">1</div>
+            <div class="arch-step__title">Capture</div>
+          </div>
+          <div class="arch-step__body">Store associate photographs the item on Android. Evidence stored to cloud blob with signed-URL access controls.</div>
+          <div class="arch-step__chip">On-device · cloud blob</div>
+        </div>
+        <div class="arch-step">
+          <div class="arch-step__head">
+            <div class="arch-step__n">2</div>
+            <div class="arch-step__title">Extract &amp; match</div>
+          </div>
+          <div class="arch-step__body">AI extracts product features from the image. Backend queries the enterprise data warehouse and returns ranked candidates with confidence scores.</div>
+          <div class="arch-step__chip">Vision model · EDW adapter</div>
+        </div>
+        <div class="arch-step">
+          <div class="arch-step__head">
+            <div class="arch-step__n">3</div>
+            <div class="arch-step__title">Review &amp; resolve</div>
+          </div>
+          <div class="arch-step__body">Green auto-confirms. Yellow or red routes to the resolver queue, a web app where specialists claim, review, and recommend the correct SKU.</div>
+          <div class="arch-step__chip">Confidence gate · resolver queue</div>
+        </div>
+        <div class="arch-step">
+          <div class="arch-step__head">
+            <div class="arch-step__n">4</div>
+            <div class="arch-step__title">Print &amp; close</div>
+          </div>
+          <div class="arch-step__body">Confirmed SKU triggers the print broker. Full audit trail written: evidence, match, decision, recommendation, print outcome.</div>
+          <div class="arch-step__chip">Print broker · audit log</div>
+        </div>
+      </div>
+
+      <div class="s4-stack">
+        <div class="s4-stack__label">Dependency-light design</div>
+        <div class="s4-stack__body">
+          <strong>Next.js + TypeScript</strong> resolver frontend  ·  <strong>FastAPI</strong> backend  ·  <strong>Postgres + Redis</strong>  ·  <strong>Cloud blob</strong> for evidence  ·  <strong>Async message bus</strong>  ·  <strong>Enterprise SSO</strong>  ·  <strong>EDW adapter</strong> for candidate lookup  ·  <strong>Print broker</strong> for routing
+        </div>
+      </div>
+    </div>
+    <div class="footbar"><span>Newtuple · Multi-brand retail case study</span><span class="footbar__page">04 / 08</span></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SLIDE 5 · STATE MACHINE
+       ═══════════════════════════════════════════════════════════ -->
+  <section data-label="State machine">
+    <div class="chrome">
+      <img src="assets/logo-cobalt.png" alt="Newtuple" class="chrome__logo">
+      <div class="chrome__meta">Case study · Workflow</div>
+    </div>
+    <div class="slide-body">
+      <div class="slide-title">
+        <span class="slide-title__num">04</span>
+      </div>
+      <h2 class="h2" style="max-width:1500px">End to end. Incident opened to ticket printed.</h2>
+      <p class="slide-title__lead">A ten-state machine governs every transition. No step can be skipped. No evidence lost.</p>
+
+      <div class="s5-flow">
+        <div class="state-step">
+          <div class="state-step__n">01</div>
+          <div>
+            <div class="state-step__title">Incident opened</div>
+            <div class="state-step__body">Associate starts a case and uploads product photos from the Android tablet.</div>
+          </div>
+        </div>
+        <div class="state-step">
+          <div class="state-step__n">02</div>
+          <div>
+            <div class="state-step__title">Feature extraction</div>
+            <div class="state-step__body">AI normalises image metadata and extracts attributes (colour, style, size, brand markers).</div>
+          </div>
+        </div>
+        <div class="state-step">
+          <div class="state-step__n">03</div>
+          <div>
+            <div class="state-step__title">EDW candidate lookup</div>
+            <div class="state-step__body">Enterprise data warehouse queried. Candidates returned and ranked by confidence score.</div>
+          </div>
+        </div>
+        <div class="state-step">
+          <div class="state-step__n">04</div>
+          <div>
+            <div class="state-step__title">Confidence gate</div>
+            <div class="state-step__body">Green auto-confirms. Yellow or red escalates to the resolver queue with all evidence attached.</div>
+          </div>
+        </div>
+        <div class="state-step">
+          <div class="state-step__n">05</div>
+          <div>
+            <div class="state-step__title">Resolver review</div>
+            <div class="state-step__body">Specialist claims the case, reviews evidence and candidates, submits a SKU recommendation.</div>
+          </div>
+        </div>
+        <div class="state-step">
+          <div class="state-step__n">06</div>
+          <div>
+            <div class="state-step__title">Print &amp; close</div>
+            <div class="state-step__body">Confirmed SKU triggers the print broker. Audit trail closed with full event history.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footbar"><span>Newtuple · Multi-brand retail case study</span><span class="footbar__page">05 / 08</span></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SLIDE 6 · GATED DELIVERY
+       ═══════════════════════════════════════════════════════════ -->
+  <section data-label="Gated delivery">
+    <div class="chrome">
+      <img src="assets/logo-cobalt.png" alt="Newtuple" class="chrome__logo">
+      <div class="chrome__meta">Case study · Delivery</div>
+    </div>
+    <div class="slide-body">
+      <div class="slide-title">
+        <span class="slide-title__num">05</span>
+      </div>
+      <h2 class="h2" style="max-width:1500px">Gated delivery. Staging before production.</h2>
+      <p class="slide-title__lead">No big-bang launch. Every gate required a signed-off demo before the team advanced.</p>
+
+      <div class="s6-grid">
+        <div class="gate-card">
+          <div class="gate-card__head">
+            <div class="gate-card__name">Gate 0</div>
+            <div class="gate-card__dur">8 weeks</div>
+          </div>
+          <div class="gate-card__lead">End-to-end staging flow</div>
+          <ul class="gate-card__list">
+            <li>Capture → AI → EDW → Resolver → Print</li>
+            <li>Infrastructure validated</li>
+            <li>EDW integration validated</li>
+          </ul>
+        </div>
+        <div class="gate-card">
+          <div class="gate-card__head">
+            <div class="gate-card__name">Gate 1</div>
+            <div class="gate-card__dur">4 weeks</div>
+          </div>
+          <div class="gate-card__lead">Confidence tuning and retry logic</div>
+          <ul class="gate-card__list">
+            <li>Telemetry and instrumentation</li>
+            <li>UAT sign-off</li>
+            <li>API simplification</li>
+          </ul>
+        </div>
+        <div class="gate-card gate-card--pilot">
+          <div class="gate-card__head">
+            <div class="gate-card__name">Pilot</div>
+            <div class="gate-card__dur">2 weeks</div>
+          </div>
+          <div class="gate-card__lead">One to two live stores</div>
+          <ul class="gate-card__list">
+            <li>Monitored production rollout</li>
+            <li>Real resolver queue activity</li>
+            <li>Live evidence capture</li>
+          </ul>
+        </div>
+        <div class="gate-card gate-card--scale">
+          <div class="gate-card__head">
+            <div class="gate-card__name">Scale</div>
+            <div class="gate-card__dur">Ongoing</div>
+          </div>
+          <div class="gate-card__lead">Up to ten stores</div>
+          <ul class="gate-card__list">
+            <li>DC-QC workflow integration</li>
+            <li>Pallet-level QC expansion</li>
+            <li>Cross-region rollout pattern</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="s6-rule">Every gate required a working end-to-end demo in staging before advancing. <strong>No exceptions.</strong></div>
+    </div>
+    <div class="footbar"><span>Newtuple · Multi-brand retail case study</span><span class="footbar__page">06 / 08</span></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SLIDE 7 · IMPACT
+       ═══════════════════════════════════════════════════════════ -->
+  <section data-label="Impact">
+    <div class="chrome">
+      <img src="assets/logo-cobalt.png" alt="Newtuple" class="chrome__logo">
+      <div class="chrome__meta">Case study · Impact</div>
+    </div>
+    <div class="slide-body">
+      <div class="slide-title">
+        <span class="slide-title__num">06</span>
+      </div>
+      <h2 class="h2" style="max-width:1500px">What the platform delivered.</h2>
+      <p class="slide-title__lead">From a manual, ad-hoc process to a governed, instrumented system. Humans in control at every ambiguous decision point.</p>
+
+      <div class="s7-row">
+        <div class="impact-tile">
+          <div class="impact-tile__value">42→20</div>
+          <div class="impact-tile__label">API surface simplified post-UAT</div>
+          <div class="impact-tile__ctx">Engineering simplicity as a deliverable.</div>
+        </div>
+        <div class="impact-tile">
+          <div class="impact-tile__value">3<span class="unit"> roles</span></div>
+          <div class="impact-tile__label">Store · supervisor · resolver</div>
+          <div class="impact-tile__ctx">Governed RBAC across the workflow.</div>
+        </div>
+        <div class="impact-tile">
+          <div class="impact-tile__value">5<span class="unit"> systems</span></div>
+          <div class="impact-tile__label">Mobile · EDW · cloud · print · resolver</div>
+          <div class="impact-tile__ctx">One governed pipeline, end to end.</div>
+        </div>
+        <div class="impact-tile">
+          <div class="impact-tile__value">100%</div>
+          <div class="impact-tile__label">Audit coverage across transitions</div>
+          <div class="impact-tile__ctx">Every event, every actor, every decision.</div>
+        </div>
+      </div>
+
+      <table class="s7-table">
+        <thead>
+          <tr>
+            <th>Impact area</th>
+            <th>Before</th>
+            <th>After</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>SKU identification</td>
+            <td>Manual lookup, inconsistent, no trail.</td>
+            <td>AI-assisted, confidence-scored, fully audited.</td>
+          </tr>
+          <tr>
+            <td>Exception handling</td>
+            <td>Ad-hoc phone and email escalation.</td>
+            <td>Structured resolver queue with evidence attached.</td>
+          </tr>
+          <tr>
+            <td>Print accuracy</td>
+            <td>Errors caught only after printing.</td>
+            <td>Confidence gate prevents incorrect print.</td>
+          </tr>
+          <tr>
+            <td>Operational visibility</td>
+            <td>No record of decisions or outcomes.</td>
+            <td>End-to-end event history per incident.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="footbar"><span>Newtuple · Multi-brand retail case study</span><span class="footbar__page">07 / 08</span></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SLIDE 8 · NEXT STEPS / CLOSER
+       ═══════════════════════════════════════════════════════════ -->
+  <section data-label="Next steps" class="dark">
+    <div class="chrome">
+      <img src="assets/logo-white.png" alt="Newtuple" class="chrome__logo">
+      <div class="chrome__meta">Case study · Next steps</div>
+    </div>
+    <div class="s8-body">
+      <div class="s8-left">
+        <h2 class="h2">Next steps.</h2>
+        <p class="slide-title__lead" style="color:rgba(255,255,255,0.72);max-width:780px">A practical roadmap that extends value without adding unnecessary complexity. The pattern is built for your scale.</p>
+
+        <div class="s8-steps">
+          <div class="next-card">
+            <div class="next-card__n">01</div>
+            <div class="next-card__title">Built for your scale</div>
+            <div class="next-card__body">Multi-brand retail. Many regions. Thousands of SKUs. The context changes. The architecture does not.</div>
+          </div>
+          <div class="next-card">
+            <div class="next-card__n">02</div>
+            <div class="next-card__title">See the workflow live</div>
+            <div class="next-card__body">A thirty-minute walkthrough of the full agentic loop with your engineering team.</div>
+          </div>
+          <div class="next-card">
+            <div class="next-card__n">03</div>
+            <div class="next-card__title">Map it to your operations</div>
+            <div class="next-card__body">We identify the exact equivalent in your stack and show where AI governance creates the most immediate value.</div>
+          </div>
+          <div class="next-card">
+            <div class="next-card__n">04</div>
+            <div class="next-card__title">Working prototype in 4 weeks</div>
+            <div class="next-card__body">A production-grade proof-of-concept against your data and stack within a single sprint gate. Working software.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="s8-right">
+        <div class="label-sm" style="color:#BFD2EF">Why this pattern travels</div>
+        <ul class="pillar-list">
+          <li>Governed AI for multi-brand retail at scale.</li>
+          <li>Human-in-the-loop at every uncertain decision point.</li>
+          <li>Production-ready from day one. Not a PoC that needs rebuilding.</li>
+          <li>Built to integrate with your enterprise stack, not replace it.</li>
+        </ul>
+
+        <div class="s8-contact">
+          <span><strong>hello@newtuple.com</strong></span>
+          <span>newtuple.com</span>
+        </div>
+      </div>
+    </div>
+    <div class="footbar"><span style="color:rgba(255,255,255,0.5)">Newtuple Technologies · Confidential · 2026</span><span class="footbar__page">08 / 08</span></div>
+  </section>
+
+</deck-stage>
+
+<script src="deck-stage.js"></script>
+</body>
+</html>

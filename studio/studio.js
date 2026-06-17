@@ -1,0 +1,1656 @@
+/* ============================================================
+   NEWTUPLE BRAND STUDIO — app logic, templates, exporters
+   All frame visuals use inline hex (from the design tokens) so
+   exported HTML/PNG/PDF are fully self-contained & portable.
+   ============================================================ */
+(() => {
+'use strict';
+
+const A = window.NT_ASSETS;
+
+/* ---- brand palette (mirrors colors_and_type.css) ---- */
+const C = {
+  cobalt:'#0047AB', cobalt700:'#003C90', cobalt400:'#2E6FD6', cyan:'#00B8D9',
+  white:'#FFFFFF', black:'#000000',
+  gray50:'#F7F8FA', gray100:'#EEF0F4', gray200:'#E2E6EC', gray300:'#CBD2DC',
+  gray400:'#9AA4B2', gray500:'#6B7686', gray600:'#4B5563', gray700:'#374151', gray900:'#0E1320',
+  navy950:'#02020A', navy900:'#0A0E2A', navy700:'#1D2B74', navy500:'#2C2BAD',
+  accentLight:'#8FB4FF',
+  success:'#1FA971', highlight:'#F2B705', warning:'#E8852B', danger:'#D64545'
+};
+const FONT = "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+
+/* theme text-role sets for slide surfaces */
+function roles(dark){
+  return dark
+    ? { fg:'#FFFFFF', fg2:'rgba(255,255,255,0.74)', fg3:'rgba(255,255,255,0.5)',
+        kicker:C.accentLight, em:C.cyan, rule:'rgba(255,255,255,0.28)', ghost:'rgba(255,255,255,0.06)',
+        cardBg:'rgba(255,255,255,0.05)', cardBorder:'rgba(255,255,255,0.14)' }
+    : { fg:C.gray900, fg2:C.gray600, fg3:C.gray500,
+        kicker:C.gray500, em:C.cobalt, rule:C.cobalt, ghost:'rgba(14,19,32,0.045)',
+        cardBg:C.gray50, cardBorder:C.gray200 };
+}
+
+/* ---------------- tiny hyperscript ---------------- */
+function h(tag, attrs, children){
+  const e = document.createElement(tag);
+  if(attrs) for(const k in attrs){
+    const v = attrs[k];
+    if(v==null) continue;
+    if(k==='style' && typeof v==='object') Object.assign(e.style, v);
+    else if(k==='class') e.className = v;
+    else if(k==='html') e.innerHTML = v;
+    else if(k.slice(0,2)==='on' && typeof v==='function') e.addEventListener(k.slice(2).toLowerCase(), v);
+    else e.setAttribute(k, v);
+  }
+  if(children!=null){
+    (Array.isArray(children)?children:[children]).forEach(c=>{
+      if(c==null || c===false) return;
+      e.appendChild(typeof c==='object' ? c : document.createTextNode(String(c)));
+    });
+  }
+  return e;
+}
+const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+/* **text** => emphasis span */
+function rich(s, emColor, emWeight){
+  return esc(s).replace(/\*\*(.+?)\*\*/g, `<span style="color:${emColor};font-weight:${emWeight||600}">$1</span>`);
+}
+/* strip markers for docx/plain */
+const plain = s => (s||'').replace(/\*\*(.+?)\*\*/g,'$1');
+
+/* ---------- editable block: tags a node for the direct-manipulation editor ----------
+   path = dot-path into state.data[kind]; the editor uses it to read/write + store
+   per-element style/position overrides. */
+function EB(path, style, raw, opts){
+  opts = opts || {};
+  const e = document.createElement(opts.tag || 'div');
+  Object.assign(e.style, style);
+  e.setAttribute('data-bind', path);
+  e.setAttribute('data-defstyle', JSON.stringify({
+    fontSize: style.fontSize || '', fontWeight: style.fontWeight || '',
+    color: style.color || '', textAlign: style.textAlign || '' }));
+  if(opts.rich){
+    e.setAttribute('data-rich','1');
+    e.dataset.em = opts.em; e.dataset.emw = opts.emw || 600;
+    e.innerHTML = rich(raw, opts.em, opts.emw || 600);
+  } else {
+    e.textContent = raw==null ? '' : String(raw);
+  }
+  return e;
+}
+/* kicker as an editable block (returns null when empty so it doesn't render) */
+function kickerEB(path, text, r){
+  if(!text) return null;
+  return EB(path, {fontSize:'22px', fontWeight:500, textTransform:'uppercase',
+    letterSpacing:'0.16em', color:r.kicker, marginBottom:'28px'}, text);
+}
+function getByPath(obj, path){ return path.split('.').reduce((o,k)=> (o==null?o:o[k]), obj); }
+function setByPath(obj, path, val){
+  const ks = path.split('.'); const last = ks.pop();
+  let o = obj; for(const k of ks){ o = o[k]; } o[last] = val;
+}
+
+/* ============================================================
+   ICONS (Lucide-style outline)
+   ============================================================ */
+const ICON = {
+  layers:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>',
+  square:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10h8M8 14h5"/></svg>',
+  banner:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M2 12h7"/></svg>',
+  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2"/></svg>',
+  pages:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h9a2 2 0 0 1 2 2v13"/><rect x="4" y="6" width="12" height="15" rx="2"/><path d="M7 11h6M7 15h4"/></svg>',
+  download:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>'
+};
+
+/* ============================================================
+   SLIDE / FRAME PRIMITIVES
+   ============================================================ */
+function baseSquare(dark, isLast, pad){
+  const frame = h('div',{class:'nt-frame', style:{
+    width:'1080px', height:'1080px', fontFamily:FONT,
+    background: dark ? C.navy900 : C.white
+  }});
+  if(dark){
+    frame.appendChild(h('div',{style:{position:'absolute', inset:'0',
+      backgroundImage:`url(${isLast ? A.carouselBg : A.carouselBgChevron})`,
+      backgroundSize:'cover', backgroundPosition:'center'}}));
+  } else {
+    frame.appendChild(h('img',{src:A.logoCobalt, alt:'Newtuple', style:{
+      position:'absolute', top:'74px', right:'96px', height:'30px', width:'auto'}}));
+  }
+  const layer = h('div',{style:{position:'absolute', inset:'0',
+    padding:(pad||'110px'), display:'flex', flexDirection:'column', justifyContent:'center'}});
+  frame.appendChild(layer);
+  return {frame, layer, r:roles(dark)};
+}
+function pageDot(frame, dark, idx, total){
+  frame.appendChild(h('div',{style:{position:'absolute', left:'110px', bottom:'64px',
+    fontSize:'18px', fontWeight:500, letterSpacing:'0.12em',
+    color: dark ? 'rgba(255,255,255,0.5)' : C.gray400}},
+    `${String(idx+1).padStart(2,'0')} / ${String(total).padStart(2,'0')}`));
+}
+function kickerEl(text, r){
+  if(!text) return null;
+  return h('div',{style:{fontSize:'22px', fontWeight:500, textTransform:'uppercase',
+    letterSpacing:'0.16em', color:r.kicker, marginBottom:'28px'}}, text);
+}
+function ghostNumber(frame, num, r){
+  if(!num) return;
+  frame.appendChild(h('div',{style:{position:'absolute', right:'48px', bottom:'-90px',
+    fontSize:'560px', fontWeight:600, lineHeight:1, color:r.ghost, letterSpacing:'-0.04em',
+    userSelect:'none'}}, num));
+}
+
+/* ============================================================
+   TEMPLATE: LINKEDIN CAROUSEL  (1080×1080 square)
+   ============================================================ */
+function buildCarouselSlide(slide, theme, idx, total){
+  const dark = theme==='dark';
+  const isLast = idx===total-1;
+  const {frame, layer, r} = baseSquare(dark, isLast);
+
+  const P = 'slides.'+idx;
+  if(slide.type==='title' || slide.type==='statement' || slide.type==='closing'){
+    layer.style.justifyContent = 'center';
+    const k = kickerEB(P+'.kicker', slide.kicker, r); if(k) layer.appendChild(k);
+    if(slide.type==='closing'){
+      layer.appendChild(h('div',{style:{width:'72px', height:'4px', background:r.rule, marginBottom:'30px'}}));
+    }
+    layer.appendChild(EB(P+'.title', {fontSize:'86px', fontWeight:200, lineHeight:1.06,
+      letterSpacing:'-0.02em', color:r.fg}, slide.title, {rich:true, em:r.em, emw:600}));
+    if(slide.body) layer.appendChild(EB(P+'.body', {marginTop:'34px', fontSize:'30px', fontWeight:300,
+      lineHeight:1.5, color:r.fg2, maxWidth:'760px'}, slide.body, {rich:true, em:r.em, emw:500}));
+    if(slide.type==='closing'){
+      layer.appendChild(h('div',{style:{marginTop:'56px', display:'flex', alignItems:'center', gap:'14px',
+        fontSize:'24px', fontWeight:500, color:r.fg}},
+        [ h('span',{style:{color:r.em, fontSize:'30px'}}, '›'),
+          EB(P+'.footLabel', {fontSize:'24px', fontWeight:500, color:r.fg}, slide.footLabel || 'Follow Newtuple for more') ]));
+    }
+  }
+  else if(slide.type==='pattern'){
+    layer.style.justifyContent = 'center';
+    ghostNumber(frame, slide.number, r);
+    layer.appendChild(EB(P+'.number', {fontSize:'140px', fontWeight:600, lineHeight:1,
+      color:r.em, letterSpacing:'-0.03em', marginBottom:'10px'}, slide.number||'01'));
+    const k = kickerEB(P+'.kicker', slide.kicker, r); if(k) layer.appendChild(k);
+    layer.appendChild(EB(P+'.title', {fontSize:'62px', fontWeight:300, lineHeight:1.12,
+      letterSpacing:'-0.01em', color:r.fg}, slide.title, {rich:true, em:r.em, emw:600}));
+    if(slide.body) layer.appendChild(EB(P+'.body', {marginTop:'26px', fontSize:'29px', fontWeight:300,
+      lineHeight:1.55, color:r.fg2, maxWidth:'780px'}, slide.body, {rich:true, em:r.em, emw:500}));
+  }
+  else if(slide.type==='list'){
+    layer.style.justifyContent = 'center';
+    const k = kickerEB(P+'.kicker', slide.kicker, r); if(k) layer.appendChild(k);
+    layer.appendChild(EB(P+'.title', {fontSize:'56px', fontWeight:300, lineHeight:1.1,
+      letterSpacing:'-0.01em', color:r.fg, marginBottom:'44px'}, slide.title, {rich:true, em:r.em, emw:600}));
+    const list = h('div',{style:{display:'flex', flexDirection:'column', gap:'2px'}});
+    (slide.items||[]).forEach((it,i)=>{
+      list.appendChild(h('div',{style:{display:'flex', alignItems:'baseline', gap:'22px',
+        padding:'22px 0', borderTop: i===0?'none':`1px solid ${dark?'rgba(255,255,255,0.12)':C.gray200}`}},
+        [ h('span',{style:{color:r.em, fontSize:'26px', fontWeight:600, minWidth:'46px'}}, String(i+1).padStart(2,'0')),
+          EB(P+'.items.'+i, {fontSize:'32px', fontWeight:300, lineHeight:1.35, color:r.fg}, it, {rich:true, em:r.em, emw:600}) ]));
+    });
+    layer.appendChild(list);
+  }
+  pageDot(frame, dark, idx, total);
+  return frame;
+}
+
+/* ============================================================
+   TEMPLATE: SOCIAL POST (1080×1080)
+   ============================================================ */
+function buildPost(d, theme){
+  const dark = theme==='dark';
+  const {frame, layer, r} = baseSquare(dark, true, '120px');
+  layer.style.justifyContent = 'center';
+
+  if(d.variant==='quote'){
+    layer.appendChild(h('div',{style:{fontSize:'150px', lineHeight:0.7, color:r.em, fontWeight:600,
+      height:'70px', overflow:'visible'}}, '“'));
+    layer.appendChild(EB('title', {marginTop:'28px', fontSize:'66px', fontWeight:200, lineHeight:1.18,
+      letterSpacing:'-0.02em', color:r.fg}, d.title, {rich:true, em:r.em, emw:600}));
+    if(d.attribution) layer.appendChild(EB('attribution', {marginTop:'40px', fontSize:'26px', fontWeight:500,
+      letterSpacing:'0.04em', color:r.fg2}, d.attribution));
+  } else if(d.variant==='stat'){
+    const k = kickerEB('kicker', d.kicker, r); if(k) layer.appendChild(k);
+    layer.appendChild(EB('metric', {fontSize:'260px', fontWeight:600, lineHeight:0.9,
+      letterSpacing:'-0.04em', color:r.em}, d.metric||'95%'));
+    layer.appendChild(EB('title', {marginTop:'18px', fontSize:'40px', fontWeight:300, color:r.fg}, d.title||''));
+    if(d.body) layer.appendChild(EB('body', {marginTop:'24px', fontSize:'28px', fontWeight:300,
+      lineHeight:1.5, color:r.fg2, maxWidth:'760px'}, d.body, {rich:true, em:r.em, emw:500}));
+  } else { /* announcement */
+    const k = kickerEB('kicker', d.kicker, r); if(k) layer.appendChild(k);
+    layer.appendChild(EB('title', {fontSize:'78px', fontWeight:200, lineHeight:1.08,
+      letterSpacing:'-0.02em', color:r.fg}, d.title, {rich:true, em:r.em, emw:600}));
+    if(d.body) layer.appendChild(EB('body', {marginTop:'30px', fontSize:'30px', fontWeight:300,
+      lineHeight:1.5, color:r.fg2, maxWidth:'780px'}, d.body, {rich:true, em:r.em, emw:500}));
+    if(d.cta) layer.appendChild(EB('cta', {marginTop:'52px', alignSelf:'flex-start',
+      padding:'18px 40px', borderRadius:'9999px', background:C.cobalt, color:'#fff',
+      fontSize:'26px', fontWeight:500}, d.cta));
+  }
+  return frame;
+}
+
+/* ============================================================
+   TEMPLATE: BANNER (1200×630)
+   ============================================================ */
+function buildBanner(d, theme){
+  const dark = theme==='dark';
+  const r = roles(dark);
+  const frame = h('div',{class:'nt-frame', style:{width:'1200px', height:'630px', fontFamily:FONT,
+    background: dark ? C.navy900 : C.white}});
+  if(dark){
+    frame.appendChild(h('div',{style:{position:'absolute', inset:'0',
+      backgroundImage:`url(${A.carouselBg})`, backgroundSize:'cover', backgroundPosition:'center 35%'}}));
+  } else {
+    frame.appendChild(h('img',{src:A.logoCobalt, style:{position:'absolute', top:'56px', left:'72px',
+      height:'30px', width:'auto'}}));
+    frame.appendChild(h('div',{style:{position:'absolute', right:'-120px', bottom:'-160px', width:'520px',
+      height:'520px', borderRadius:'9999px', background:'rgba(0,71,171,0.06)'}}));
+  }
+  const layer = h('div',{style:{position:'absolute', inset:'0', padding:'72px',
+    display:'flex', flexDirection:'column', justifyContent:'center'}});
+  const k = kickerEB('kicker', d.kicker, r); if(k) layer.appendChild(k);
+  layer.appendChild(EB('title', {fontSize:'68px', fontWeight:200, lineHeight:1.08,
+    letterSpacing:'-0.02em', color:r.fg, maxWidth:'900px'}, d.title, {rich:true, em:r.em, emw:600}));
+  if(d.subtitle) layer.appendChild(EB('subtitle', {marginTop:'24px', fontSize:'27px', fontWeight:300,
+    lineHeight:1.45, color:r.fg2, maxWidth:'820px'}, d.subtitle, {rich:true, em:r.em, emw:500}));
+  frame.appendChild(layer);
+  return frame;
+}
+
+/* ============================================================
+   TEMPLATE: ONE-PAGER (A4 portrait 794×1123, light only)
+   ============================================================ */
+function buildOnePager(d){
+  const r = roles(false);
+  const frame = h('div',{class:'nt-frame', style:{width:'794px', height:'1123px', fontFamily:FONT,
+    background:C.white, display:'flex', flexDirection:'column'}});
+  /* header band */
+  frame.appendChild(h('div',{style:{display:'flex', alignItems:'center', justifyContent:'space-between',
+    padding:'40px 56px 0'}},
+    [ h('img',{src:A.logoCobalt, style:{height:'24px'}}),
+      EB('eyebrow', {fontSize:'11px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.14em',
+        color:C.gray400}, d.eyebrow||'Capability Overview') ]));
+  /* hero */
+  const body = h('div',{style:{flex:'1', padding:'34px 56px 0', display:'flex', flexDirection:'column'}});
+  body.appendChild(EB('title', {fontSize:'40px', fontWeight:200, lineHeight:1.12, letterSpacing:'-0.02em',
+    color:C.gray900, maxWidth:'620px'}, d.title, {rich:true, em:C.cobalt, emw:600}));
+  if(d.intro) body.appendChild(EB('intro', {marginTop:'18px', fontSize:'15px', fontWeight:300,
+    lineHeight:1.7, color:C.gray600, maxWidth:'640px'}, d.intro, {rich:true, em:C.cobalt, emw:500}));
+
+  /* features grid */
+  if((d.features||[]).length){
+    const grid = h('div',{style:{marginTop:'34px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px'}});
+    d.features.forEach((f,i)=>{
+      grid.appendChild(h('div',{style:{border:`1px solid ${C.gray200}`, borderRadius:'20px',
+        padding:'22px 24px', background:C.gray50}},
+        [ EB('features.'+i+'.title', {fontSize:'17px', fontWeight:500, color:C.gray900, marginBottom:'8px'}, f.title),
+          EB('features.'+i+'.desc', {fontSize:'13px', fontWeight:300, lineHeight:1.6, color:C.gray600}, f.desc) ]));
+    });
+    body.appendChild(grid);
+  }
+  /* metrics row */
+  if((d.metrics||[]).length){
+    const row = h('div',{style:{marginTop:'34px', display:'flex', gap:'40px', flexWrap:'wrap'}});
+    d.metrics.forEach((m,i)=>{
+      row.appendChild(h('div',{},
+        [ EB('metrics.'+i+'.value', {fontSize:'42px', fontWeight:600, letterSpacing:'-0.02em', color:C.cobalt}, m.value),
+          EB('metrics.'+i+'.label', {fontSize:'12px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.1em',
+            color:C.gray500, marginTop:'4px'}, m.label) ]));
+    });
+    body.appendChild(row);
+  }
+  frame.appendChild(body);
+  /* CTA footer band */
+  frame.appendChild(h('div',{style:{background:C.cobalt, color:'#fff', padding:'26px 56px',
+    display:'flex', alignItems:'center', justifyContent:'space-between'}},
+    [ EB('ctaText', {fontSize:'20px', fontWeight:300, color:'#fff'}, d.ctaText||'Build Your Agentic Enterprise.'),
+      EB('ctaUrl', {fontSize:'15px', fontWeight:500, letterSpacing:'0.02em', color:'#fff'}, d.ctaUrl||'newtuple.com') ]));
+  return frame;
+}
+
+/* ============================================================
+   TEMPLATE: PROPOSAL (A4 portrait, multi-page document, light)
+   ============================================================ */
+function proposalShell(idx, total, kicker){
+  const frame = h('div',{class:'nt-frame', style:{width:'794px', height:'1123px', fontFamily:FONT,
+    background:C.white, display:'flex', flexDirection:'column'}});
+  frame.appendChild(h('div',{style:{flex:'0 0 auto', display:'flex', alignItems:'center',
+    justifyContent:'space-between', padding:'40px 56px 0'}},
+    [ h('img',{src:A.logoCobalt, style:{height:'22px'}}),
+      EB('pages.'+idx+'.kicker', {fontSize:'10px', fontWeight:500, textTransform:'uppercase',
+        letterSpacing:'0.14em', color:C.gray400}, kicker||'') ]));
+  const content = h('div',{style:{flex:'1', minHeight:'0', padding:'28px 56px',
+    display:'flex', flexDirection:'column'}});
+  frame.appendChild(content);
+  frame.appendChild(h('div',{style:{flex:'0 0 auto', padding:'0 56px 30px', display:'flex',
+    justifyContent:'space-between', fontSize:'10px', fontWeight:500, letterSpacing:'0.08em',
+    color:C.gray400, textTransform:'uppercase'}},
+    [ h('span',{},'Newtuple · Confidential'), h('span',{}, `Page ${idx+1} / ${total}`) ]));
+  return {frame, content};
+}
+function pBullet(path, text){
+  return h('div',{style:{display:'flex', alignItems:'flex-start', gap:'12px', padding:'7px 0'}},
+    [ h('div',{style:{width:'7px', height:'7px', borderRadius:'50%', background:C.cobalt, marginTop:'9px', flex:'0 0 auto'}}),
+      EB(path, {fontSize:'14px', fontWeight:300, lineHeight:1.6, color:C.gray700}, text, {rich:true, em:C.cobalt, emw:600}) ]);
+}
+function buildProposalPage(page, idx, total){
+  const P = 'pages.'+idx;
+  const {frame, content} = proposalShell(idx, total, page.kicker);
+
+  if(page.type==='cover'){
+    content.style.justifyContent = 'center';
+    content.appendChild(h('div',{style:{width:'64px', height:'4px', background:C.cobalt, marginBottom:'30px'}}));
+    content.appendChild(EB(P+'.title', {fontSize:'50px', fontWeight:200, lineHeight:1.1,
+      letterSpacing:'-0.02em', color:C.gray900, maxWidth:'600px'}, page.title, {rich:true, em:C.cobalt, emw:600}));
+    if(page.subtitle) content.appendChild(EB(P+'.subtitle', {marginTop:'20px', fontSize:'17px',
+      fontWeight:300, lineHeight:1.6, color:C.gray600, maxWidth:'560px'}, page.subtitle, {rich:true, em:C.cobalt, emw:500}));
+    if(page.meta) content.appendChild(EB(P+'.meta', {marginTop:'44px', fontSize:'14px', fontWeight:500,
+      letterSpacing:'0.02em', color:C.gray500}, page.meta));
+  }
+  else if(page.type==='section'){
+    content.style.justifyContent = 'center';
+    content.appendChild(EB(P+'.number', {fontSize:'120px', fontWeight:600, lineHeight:1, color:C.cobalt,
+      letterSpacing:'-0.03em', marginBottom:'10px'}, page.number||'01'));
+    content.appendChild(EB(P+'.title', {fontSize:'40px', fontWeight:300, lineHeight:1.15,
+      letterSpacing:'-0.01em', color:C.gray900, maxWidth:'560px'}, page.title, {rich:true, em:C.cobalt, emw:600}));
+  }
+  else if(page.type==='content'){
+    content.appendChild(EB(P+'.title', {fontSize:'30px', fontWeight:400, lineHeight:1.2,
+      color:C.gray900, marginBottom:'16px'}, page.title, {rich:true, em:C.cobalt, emw:600}));
+    if(page.body) content.appendChild(EB(P+'.body', {fontSize:'15px', fontWeight:300, lineHeight:1.7,
+      color:C.gray600, maxWidth:'620px', marginBottom:'14px'}, page.body, {rich:true, em:C.cobalt, emw:500}));
+    (page.items||[]).forEach((it,j)=> content.appendChild(pBullet(P+'.items.'+j, it)));
+  }
+  else if(page.type==='twocol'){
+    content.appendChild(EB(P+'.title', {fontSize:'30px', fontWeight:400, lineHeight:1.2,
+      color:C.gray900, marginBottom:'24px'}, page.title, {rich:true, em:C.cobalt, emw:600}));
+    const col = (st, bt, sv, bv)=> h('div',{style:{flex:'1'}},
+      [ EB(st, {fontSize:'13px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.1em',
+          color:C.cobalt, marginBottom:'10px'}, sv),
+        EB(bt, {fontSize:'14px', fontWeight:300, lineHeight:1.65, color:C.gray700}, bv, {rich:true, em:C.cobalt, emw:600}) ]);
+    content.appendChild(h('div',{style:{display:'flex', gap:'40px'}},
+      [ col(P+'.leftTitle', P+'.leftBody', page.leftTitle, page.leftBody),
+        col(P+'.rightTitle', P+'.rightBody', page.rightTitle, page.rightBody) ]));
+  }
+  else if(page.type==='metrics'){
+    content.appendChild(EB(P+'.title', {fontSize:'30px', fontWeight:400, lineHeight:1.2,
+      color:C.gray900, marginBottom:'14px'}, page.title, {rich:true, em:C.cobalt, emw:600}));
+    if(page.body) content.appendChild(EB(P+'.body', {fontSize:'15px', fontWeight:300, lineHeight:1.7,
+      color:C.gray600, maxWidth:'620px', marginBottom:'28px'}, page.body, {rich:true, em:C.cobalt, emw:500}));
+    const grid = h('div',{style:{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px'}});
+    (page.metrics||[]).forEach((m,j)=> grid.appendChild(h('div',{style:{border:`1px solid ${C.gray200}`,
+      borderRadius:'18px', padding:'22px 24px', background:C.gray50}},
+      [ EB(P+'.metrics.'+j+'.value', {fontSize:'40px', fontWeight:600, letterSpacing:'-0.02em', color:C.cobalt}, m.value),
+        EB(P+'.metrics.'+j+'.label', {fontSize:'13px', fontWeight:400, lineHeight:1.5, color:C.gray600, marginTop:'6px'}, m.label) ])));
+    content.appendChild(grid);
+  }
+  else if(page.type==='cta'){
+    content.style.justifyContent = 'center';
+    content.appendChild(EB(P+'.title', {fontSize:'42px', fontWeight:200, lineHeight:1.1,
+      letterSpacing:'-0.02em', color:C.gray900, maxWidth:'560px'}, page.title, {rich:true, em:C.cobalt, emw:600}));
+    if(page.body) content.appendChild(EB(P+'.body', {marginTop:'20px', fontSize:'16px', fontWeight:300,
+      lineHeight:1.7, color:C.gray600, maxWidth:'560px'}, page.body, {rich:true, em:C.cobalt, emw:500}));
+    content.appendChild(h('div',{style:{marginTop:'40px', background:C.cobalt, color:'#fff', borderRadius:'18px',
+      padding:'24px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', maxWidth:'560px'}},
+      [ EB(P+'.meta', {fontSize:'16px', fontWeight:300, color:'#fff'}, page.meta||'Let’s talk'),
+        EB(P+'.ctaUrl', {fontSize:'15px', fontWeight:500, color:'#fff'}, page.ctaUrl||'newtuple.com') ]));
+  }
+  return frame;
+}
+
+/* ============================================================
+   KIND REGISTRY
+   ============================================================ */
+const KINDS = {
+  carousel: {
+    name:'LinkedIn Carousel', sub:'1080×1080 · multi-slide', icon:'layers', themes:['dark','light'],
+    defaults(){ return { slides:[
+      { type:'title', kicker:'Most AI agents fail in production',
+        title:'The problem usually is not the model. It is the **architecture**.',
+        body:'5 agentic design patterns we use to ship production-grade AI.' },
+      { type:'pattern', number:'01', kicker:'Pattern', title:'**ReAct** — reason, then act',
+        body:'Interleave reasoning traces with tool calls so the agent decides its next step from real observations, not a frozen plan.' },
+      { type:'pattern', number:'02', kicker:'Pattern', title:'**Reflection** loops',
+        body:'A critic pass reviews the agent’s own output before it ships — catching errors the first draft missed.' },
+      { type:'list', kicker:'In practice', title:'Where these patterns earn their keep',
+        items:['Multi-agent orchestration with clear hand-offs','Observability on every step and tool call','Agentic RAG grounded in your systems of record','Continuous evaluation so quality holds at scale'] },
+      { type:'closing', kicker:'Your turn',
+        title:'Architecture is **the** differentiator in production AI.',
+        body:'What design patterns have worked well for your AI systems?',
+        footLabel:'Follow Newtuple for more' }
+    ] }; },
+    frames(d, theme){ const t=d.slides.length; return d.slides.map((s,i)=>({
+      id:'s'+i, label:`${i+1}`, w:1080, h:1080, build:()=>buildCarouselSlide(s, theme, i, t) })); },
+    file:'newtuple-carousel'
+  },
+  post: {
+    name:'Social Post', sub:'1080×1080 · single', icon:'square', themes:['dark','light'],
+    defaults(){ return { variant:'quote',
+      title:'We do not launch an agent until it can answer **five questions**.',
+      attribution:'— Newtuple · On agent readiness',
+      kicker:'Document intelligence', metric:'95%',
+      body:'accuracy across **30–40k documents / month** in production.',
+      cta:'Talk to us' }; },
+    frames(d, theme){ return [{ id:'post', label:'Post', w:1080, h:1080, build:()=>buildPost(d, theme) }]; },
+    file:'newtuple-post'
+  },
+  banner: {
+    name:'Banner', sub:'1200×630 · LinkedIn / OG', icon:'banner', themes:['dark','light'],
+    defaults(){ return {
+      kicker:'Generative AI experts',
+      title:'Build Your **Agentic** Enterprise.',
+      subtitle:'We design, build & operate production-grade AI agents and applications — with governance, observability and measurable ROI.' }; },
+    frames(d, theme){ return [{ id:'banner', label:'Banner', w:1200, h:630, build:()=>buildBanner(d, theme) }]; },
+    file:'newtuple-banner'
+  },
+  onepager: {
+    name:'One-Pager', sub:'A4 · capability sheet', icon:'doc', themes:['light'],
+    defaults(){ return {
+      eyebrow:'Capability Overview',
+      title:'We get AI to production at **warp speed**.',
+      intro:'Newtuple is a GenAI consultancy focused exclusively on production-grade AI — taking agents and apps past the proof-of-concept stage into deployment with SLAs, observability and continuous optimization.',
+      features:[
+        {title:'Build AI Agents', desc:'Design, build & operate enterprise AI agents — PMO, recruitment, finance and support — with governance and measurable ROI.'},
+        {title:'Build AI Apps', desc:'Strategy, architecture & engineering for AI-first products. 0→1 productization, AI augmentation and managed GenAI pods.'},
+        {title:'Accelerators', desc:'Dialogtuple multi-agent platform and Gaugetuple LLM evaluation give teams a ~70% head start.'},
+        {title:'Industries', desc:'Financial services, retail, healthcare, aviation and agencies — real deployments at enterprise scale.'}
+      ],
+      metrics:[ {value:'95%', label:'Doc accuracy'}, {value:'10x', label:'Performance'}, {value:'4–6 wks', label:'To prototype'} ],
+      ctaText:'Build Your Agentic Enterprise.', ctaUrl:'newtuple.com' }; },
+    frames(d){ return [{ id:'op', label:'Page', w:794, h:1123, build:()=>buildOnePager(d) }]; },
+    file:'newtuple-onepager'
+  },
+  proposal: {
+    name:'Proposal', sub:'A4 · multi-page document', icon:'pages', themes:['light'],
+    defaults(){ return { pages:[
+      { type:'cover', kicker:'Proposal', title:'Pension Contribution Processing **Automation**',
+        subtitle:'An agentic pipeline to ingest, validate and reconcile contribution files end-to-end.',
+        meta:'Prepared for the client · June 2026' },
+      { type:'section', kicker:'Section 01', number:'01', title:'The opportunity' },
+      { type:'content', kicker:'Context', title:'Manual processing is slow, costly and error-prone',
+        body:'Contribution files arrive in inconsistent formats and are reconciled by hand — creating backlogs, rekeying errors and audit risk.',
+        items:[
+          'Hundreds of files per cycle across varied schemas and channels',
+          'Manual validation and exception handling dominates the effort',
+          'No single audit trail across ingestion, validation and posting',
+          'Scaling means adding headcount, not capacity' ] },
+      { type:'twocol', kicker:'Approach', title:'What we will build',
+        leftTitle:'The problem', leftBody:'A reconciliation process that breaks under format drift and volume, with people in the loop on every line.',
+        rightTitle:'Our approach', rightBody:'An **agentic pipeline** — extract, validate against rules, auto-resolve exceptions, escalate only edge cases, with full observability.' },
+      { type:'metrics', kicker:'Impact', title:'Expected impact',
+        body:'Targets based on comparable document-intelligence deployments.',
+        metrics:[
+          {value:'95%', label:'Straight-through processing on standard files'},
+          {value:'30–40k', label:'Documents handled per month'},
+          {value:'Hours→min', label:'Cycle time per contribution batch'},
+          {value:'Full', label:'Audit trail across every step'} ] },
+      { type:'cta', kicker:'Next steps', title:'Let’s ship a working pilot in **4–6 weeks**.',
+        body:'We propose a scoped pilot on one file type, with measurable accuracy and cycle-time targets before scaling.',
+        meta:'Talk to the Newtuple team', ctaUrl:'newtuple.com' }
+    ] }; },
+    frames(d){ const t=d.pages.length; return d.pages.map((p,i)=>({
+      id:'p'+i, label:`${i+1}`, w:794, h:1123, build:()=>buildProposalPage(p, i, t) })); },
+    file:'newtuple-proposal'
+  }
+};
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const state = { kind:'carousel', theme:'dark', active:0, data:{}, overrides:{}, markup:{}, decor:{}, markupOn:false };
+for(const k in KINDS){ state.data[k] = KINDS[k].defaults(); state.overrides[k] = {}; state.markup[k] = []; state.decor[k] = []; }
+
+const $ = sel => document.querySelector(sel);
+
+/* ---------------- persistence (localStorage) ---------------- */
+const LS_KEY = 'nt-studio-v1';
+function persist(){
+  try { localStorage.setItem(LS_KEY, JSON.stringify({ data:state.data, overrides:state.overrides, markup:state.markup, decor:state.decor })); } catch(e){}
+}
+function loadPersisted(){
+  try {
+    const raw = localStorage.getItem(LS_KEY); if(!raw) return;
+    const s = JSON.parse(raw);
+    for(const k in KINDS){
+      if(s.data && s.data[k]) state.data[k] = s.data[k];
+      if(s.overrides && s.overrides[k]) state.overrides[k] = s.overrides[k];
+      if(s.markup && s.markup[k]) state.markup[k] = s.markup[k];
+      if(s.decor && s.decor[k]) state.decor[k] = s.decor[k];
+    }
+  } catch(e){}
+}
+
+/* ---------------- undo / redo ---------------- */
+const _undo = [], _redo = [];
+function snapshot(){ return JSON.stringify({ k:state.kind, data:state.data[state.kind], ov:state.overrides[state.kind], mk:state.markup[state.kind], dc:state.decor[state.kind] }); }
+function pushUndo(){ _undo.push(snapshot()); if(_undo.length>60) _undo.shift(); _redo.length=0; persist(); }
+function applySnap(s){
+  const o = JSON.parse(s); state.kind = o.k;
+  state.data[o.k] = o.data; state.overrides[o.k] = o.ov; state.markup[o.k] = o.mk; state.decor[o.k] = o.dc || [];
+}
+function undo(){ if(!_undo.length) return; _redo.push(snapshot()); applySnap(_undo.pop()); editorDeselect(); renderAll(); persist(); }
+function redo(){ if(!_redo.length) return; _undo.push(snapshot()); applySnap(_redo.pop()); editorDeselect(); renderAll(); persist(); }
+
+/* ============================================================
+   RENDER: left rail, theme, preview, form
+   ============================================================ */
+function renderKindList(){
+  const host = $('#kind-list'); host.innerHTML='';
+  for(const key in KINDS){
+    const k = KINDS[key];
+    host.appendChild(h('button',{class:'kind-item'+(key===state.kind?' active':''),
+      onClick:()=>{ state.kind=key; state.active=0;
+        if(!k.themes.includes(state.theme)) state.theme=k.themes[0];
+        renderAll(); }},
+      [ h('span',{class:'ki-ico', html:ICON[k.icon]}),
+        h('span',{class:'ki-text'},[ h('span',{class:'ki-name'},k.name), h('span',{class:'ki-sub'},k.sub) ]) ]));
+  }
+}
+function renderTheme(){
+  const host = $('#theme-toggle'); host.innerHTML='';
+  const kind = KINDS[state.kind];
+  ['light','dark'].forEach(th=>{
+    const enabled = kind.themes.includes(th);
+    host.appendChild(h('button',{class:(th===state.theme?'active':''),
+      disabled: enabled?null:'', style: enabled?{}:{opacity:0.35, cursor:'not-allowed'},
+      onClick:()=>{ if(!enabled) return; state.theme=th; renderPreview(); }},
+      th==='light'?'Light':'Agentic dark'));
+  });
+}
+
+let _frames = [];
+function renderPreview(){
+  const kind = KINDS[state.kind];
+  _frames = kind.frames(state.data[state.kind], state.theme);
+  if(state.active>=_frames.length) state.active=0;
+
+  /* tabs */
+  const tabs = $('#frame-tabs'); tabs.innerHTML='';
+  if(_frames.length>1){
+    _frames.forEach((f,i)=>tabs.appendChild(h('button',{class:'frame-tab'+(i===state.active?' active':''),
+      onClick:()=>{ state.active=i; renderPreview(); }}, f.label)));
+  }
+  /* mount active frame */
+  const fr = _frames[state.active];
+  const scaler = $('#stage-scaler'); scaler.innerHTML='';
+  const el = fr.build();
+  scaler.appendChild(el);
+  _frameEl = el;
+  $('#frame-dims').textContent = `${fr.w} × ${fr.h}`;
+  applyOverrides(el);
+  const dl = decorLayer(state.kind, state.active, true); if(dl) el.appendChild(dl);
+  editorAttach(el);
+  renderMarkup(el);
+  requestAnimationFrame(()=>{ fitStage(); editorReselect(); });
+}
+let _scale = 1, _frameEl = null;
+function fitStage(){
+  const fr = _frames[state.active]; if(!fr) return;
+  const stage = $('#stage');
+  const availW = stage.clientWidth - 96, availH = stage.clientHeight - 96;
+  _scale = Math.min(availW/fr.w, availH/fr.h, 1);
+  $('#stage-scaler').style.transform = `scale(${_scale})`;
+  positionChrome();
+}
+
+/* ---------------- FORM ---------------- */
+function field(label, value, oninput, opts){
+  opts = opts||{};
+  const input = opts.area
+    ? h('textarea',{rows:opts.rows||2, oninput:e=>oninput(e.target.value)}, value||'')
+    : h('input',{type:'text', value:value||'', oninput:e=>oninput(e.target.value)});
+  return h('div',{class:'field'},
+    [ h('label',{}, label), input, opts.hint?h('div',{class:'hint'},opts.hint):null ]);
+}
+function selectField(label, value, options, oninput){
+  const sel = h('select',{onchange:e=>oninput(e.target.value)},
+    options.map(o=>h('option',{value:o.v, selected: o.v===value?'':null}, o.t)));
+  return h('div',{class:'field'},[ h('label',{}, label), sel ]);
+}
+function iconBtn(glyph, title, onclick, disabled){
+  return h('button',{class:'icon-btn', title, disabled:disabled?'':null, onClick:onclick}, glyph);
+}
+
+function renderForm(){
+  const host = $('#form-host'); host.innerHTML='';
+  const d = state.data[state.kind];
+
+  if(state.kind==='carousel'){
+    d.slides.forEach((s,i)=>{
+      const card = h('div',{class:'slide-card'});
+      card.appendChild(h('div',{class:'sc-head'},
+        [ h('span',{class:'sc-title'}, `Slide ${i+1}`),
+          h('div',{class:'sc-actions'},
+            [ iconBtn('↑','Move up',()=>{ if(i>0){ [d.slides[i-1],d.slides[i]]=[d.slides[i],d.slides[i-1]]; state.active=i-1; renderAll(); } }, i===0),
+              iconBtn('↓','Move down',()=>{ if(i<d.slides.length-1){ [d.slides[i+1],d.slides[i]]=[d.slides[i],d.slides[i+1]]; state.active=i+1; renderAll(); } }, i===d.slides.length-1),
+              iconBtn('✕','Delete',()=>{ d.slides.splice(i,1); renderAll(); }, d.slides.length<=1) ]) ]));
+      card.appendChild(selectField('Type', s.type,
+        [{v:'title',t:'Title'},{v:'statement',t:'Statement'},{v:'pattern',t:'Numbered pattern'},{v:'list',t:'List'},{v:'closing',t:'Closing'}],
+        v=>{ s.type=v; if(v==='pattern'&&!s.number) s.number='01'; if(v==='list'&&!s.items) s.items=['First point','Second point']; renderAll(); }));
+      card.appendChild(field('Kicker (eyebrow)', s.kicker, v=>{ s.kicker=v; live(i); }, {hint:'UPPERCASE label'}));
+      if(s.type==='pattern') card.appendChild(field('Number', s.number, v=>{ s.number=v; live(i); }));
+      card.appendChild(field('Headline', s.title, v=>{ s.title=v; live(i); }, {area:true, rows:2, hint:'Wrap a phrase in **stars** for cobalt/cyan emphasis'}));
+      if(s.type==='list'){
+        (s.items||[]).forEach((it,j)=>{
+          card.appendChild(h('div',{style:{display:'flex',gap:'6px',alignItems:'flex-end'}},
+            [ h('div',{style:{flex:'1'}}, field(`Item ${j+1}`, it, v=>{ s.items[j]=v; live(i); })),
+              iconBtn('✕','Remove',()=>{ s.items.splice(j,1); renderForm(); live(i); }, s.items.length<=1) ]));
+        });
+        card.appendChild(h('button',{class:'add-slide-btn', onClick:()=>{ s.items.push('New point'); renderForm(); live(i); }}, '+ Add item'));
+      } else {
+        card.appendChild(field('Body', s.body, v=>{ s.body=v; live(i); }, {area:true, rows:3}));
+      }
+      if(s.type==='closing') card.appendChild(field('Footer cue', s.footLabel, v=>{ s.footLabel=v; live(i); }));
+      host.appendChild(card);
+    });
+    host.appendChild(h('button',{class:'add-slide-btn', onClick:()=>{
+      d.slides.push({type:'statement', kicker:'', title:'New statement', body:''}); state.active=d.slides.length-1; renderAll(); }},
+      '+ Add slide'));
+  }
+  else if(state.kind==='post'){
+    host.appendChild(selectField('Variant', d.variant,
+      [{v:'quote',t:'Quote'},{v:'stat',t:'Stat / metric'},{v:'announcement',t:'Announcement'}],
+      v=>{ d.variant=v; renderAll(); }));
+    if(d.variant==='quote'){
+      host.appendChild(field('Quote', d.title, v=>{d.title=v;live();},{area:true,rows:3, hint:'**stars** = emphasis'}));
+      host.appendChild(field('Attribution', d.attribution, v=>{d.attribution=v;live();}));
+    } else if(d.variant==='stat'){
+      host.appendChild(field('Kicker', d.kicker, v=>{d.kicker=v;live();}));
+      host.appendChild(field('Metric', d.metric, v=>{d.metric=v;live();},{hint:'e.g. 95% · 10x · $5M+'}));
+      host.appendChild(field('Caption', d.title, v=>{d.title=v;live();}));
+      host.appendChild(field('Body', d.body, v=>{d.body=v;live();},{area:true,rows:2}));
+    } else {
+      host.appendChild(field('Kicker', d.kicker, v=>{d.kicker=v;live();}));
+      host.appendChild(field('Headline', d.title, v=>{d.title=v;live();},{area:true,rows:2,hint:'**stars** = emphasis'}));
+      host.appendChild(field('Body', d.body, v=>{d.body=v;live();},{area:true,rows:3}));
+      host.appendChild(field('CTA pill', d.cta, v=>{d.cta=v;live();}));
+    }
+  }
+  else if(state.kind==='banner'){
+    host.appendChild(field('Kicker', d.kicker, v=>{d.kicker=v;live();}));
+    host.appendChild(field('Headline', d.title, v=>{d.title=v;live();},{area:true,rows:2,hint:'**stars** = emphasis'}));
+    host.appendChild(field('Subtitle', d.subtitle, v=>{d.subtitle=v;live();},{area:true,rows:3}));
+  }
+  else if(state.kind==='onepager'){
+    host.appendChild(field('Eyebrow', d.eyebrow, v=>{d.eyebrow=v;live();}));
+    host.appendChild(field('Title', d.title, v=>{d.title=v;live();},{area:true,rows:2,hint:'**stars** = cobalt emphasis'}));
+    host.appendChild(field('Intro', d.intro, v=>{d.intro=v;live();},{area:true,rows:4}));
+    host.appendChild(h('div',{class:'rail-section-title nt-label',style:{marginTop:'8px'}},'Features'));
+    d.features.forEach((f,i)=>{
+      host.appendChild(h('div',{class:'slide-card'},
+        [ h('div',{class:'sc-head'},[ h('span',{class:'sc-title'},`Feature ${i+1}`),
+            iconBtn('✕','Remove',()=>{ d.features.splice(i,1); renderAll(); }, d.features.length<=1) ]),
+          field('Title', f.title, v=>{f.title=v;live();}),
+          field('Description', f.desc, v=>{f.desc=v;live();},{area:true,rows:2}) ]));
+    });
+    host.appendChild(h('button',{class:'add-slide-btn', onClick:()=>{ d.features.push({title:'New feature',desc:''}); renderAll(); }},'+ Add feature'));
+    host.appendChild(h('div',{class:'rail-section-title nt-label',style:{marginTop:'8px'}},'Metrics'));
+    d.metrics.forEach((m,i)=>{
+      host.appendChild(h('div',{style:{display:'flex',gap:'6px',alignItems:'flex-end'}},
+        [ h('div',{style:{flex:'1'}}, field(`Value ${i+1}`, m.value, v=>{m.value=v;live();})),
+          h('div',{style:{flex:'1.4'}}, field('Label', m.label, v=>{m.label=v;live();})),
+          iconBtn('✕','Remove',()=>{ d.metrics.splice(i,1); renderAll(); }, d.metrics.length<=1) ]));
+    });
+    host.appendChild(h('button',{class:'add-slide-btn', onClick:()=>{ d.metrics.push({value:'',label:''}); renderAll(); }},'+ Add metric'));
+    host.appendChild(field('CTA text', d.ctaText, v=>{d.ctaText=v;live();}));
+    host.appendChild(field('CTA url', d.ctaUrl, v=>{d.ctaUrl=v;live();}));
+  }
+  else if(state.kind==='proposal'){
+    d.pages.forEach((p,i)=>{
+      const card = h('div',{class:'slide-card'});
+      card.appendChild(h('div',{class:'sc-head'},
+        [ h('span',{class:'sc-title'}, `Page ${i+1}`),
+          h('div',{class:'sc-actions'},
+            [ iconBtn('↑','Move up',()=>{ if(i>0){ [d.pages[i-1],d.pages[i]]=[d.pages[i],d.pages[i-1]]; state.active=i-1; renderAll(); } }, i===0),
+              iconBtn('↓','Move down',()=>{ if(i<d.pages.length-1){ [d.pages[i+1],d.pages[i]]=[d.pages[i],d.pages[i+1]]; state.active=i+1; renderAll(); } }, i===d.pages.length-1),
+              iconBtn('✕','Delete',()=>{ d.pages.splice(i,1); renderAll(); }, d.pages.length<=1) ]) ]));
+      card.appendChild(selectField('Type', p.type,
+        [{v:'cover',t:'Cover'},{v:'section',t:'Section divider'},{v:'content',t:'Content + bullets'},{v:'twocol',t:'Two columns'},{v:'metrics',t:'Metrics'},{v:'cta',t:'Closing / CTA'}],
+        v=>{ p.type=v; seedProposalDefaults(p,v); renderAll(); }));
+      card.appendChild(field('Header label', p.kicker, v=>{p.kicker=v;live(i);}));
+      if(p.type==='section') card.appendChild(field('Number', p.number, v=>{p.number=v;live(i);}));
+      if(p.type!=='twocol') card.appendChild(field('Title', p.title, v=>{p.title=v;live(i);},{area:true,rows:2,hint:'**stars** = cobalt emphasis'}));
+      if(p.type==='cover') card.appendChild(field('Subtitle', p.subtitle, v=>{p.subtitle=v;live(i);},{area:true,rows:3}));
+      if(['content','metrics','cta'].includes(p.type)) card.appendChild(field('Body', p.body, v=>{p.body=v;live(i);},{area:true,rows:3}));
+      if(p.type==='cover') card.appendChild(field('Meta line', p.meta, v=>{p.meta=v;live(i);}));
+      if(p.type==='content'){
+        (p.items||[]).forEach((it,j)=> card.appendChild(h('div',{style:{display:'flex',gap:'6px',alignItems:'flex-end'}},
+          [ h('div',{style:{flex:'1'}}, field(`Bullet ${j+1}`, it, v=>{p.items[j]=v;live(i);})),
+            iconBtn('✕','Remove',()=>{ p.items.splice(j,1); renderForm(); live(i); }, (p.items||[]).length<=1) ])));
+        card.appendChild(h('button',{class:'add-slide-btn', onClick:()=>{ (p.items=p.items||[]).push('New point'); renderForm(); live(i); }}, '+ Add bullet'));
+      }
+      if(p.type==='twocol'){
+        card.appendChild(field('Title', p.title, v=>{p.title=v;live(i);}));
+        card.appendChild(field('Left heading', p.leftTitle, v=>{p.leftTitle=v;live(i);}));
+        card.appendChild(field('Left body', p.leftBody, v=>{p.leftBody=v;live(i);},{area:true,rows:3}));
+        card.appendChild(field('Right heading', p.rightTitle, v=>{p.rightTitle=v;live(i);}));
+        card.appendChild(field('Right body', p.rightBody, v=>{p.rightBody=v;live(i);},{area:true,rows:3}));
+      }
+      if(p.type==='metrics'){
+        (p.metrics||[]).forEach((m,j)=> card.appendChild(h('div',{style:{display:'flex',gap:'6px',alignItems:'flex-end'}},
+          [ h('div',{style:{flex:'1'}}, field(`Value ${j+1}`, m.value, v=>{m.value=v;live(i);})),
+            h('div',{style:{flex:'1.6'}}, field('Label', m.label, v=>{m.label=v;live(i);})),
+            iconBtn('✕','Remove',()=>{ p.metrics.splice(j,1); renderForm(); live(i); }, (p.metrics||[]).length<=1) ])));
+        card.appendChild(h('button',{class:'add-slide-btn', onClick:()=>{ (p.metrics=p.metrics||[]).push({value:'',label:''}); renderForm(); live(i); }}, '+ Add metric'));
+      }
+      if(p.type==='cta'){ card.appendChild(field('CTA line', p.meta, v=>{p.meta=v;live(i);})); card.appendChild(field('CTA url', p.ctaUrl, v=>{p.ctaUrl=v;live(i);})); }
+      host.appendChild(card);
+    });
+    host.appendChild(h('button',{class:'add-slide-btn', onClick:()=>{
+      d.pages.push({type:'content', kicker:'', title:'New page', body:'', items:['Point']}); state.active=d.pages.length-1; renderAll(); }},
+      '+ Add page'));
+  }
+}
+function seedProposalDefaults(p, v){
+  if(v==='section' && !p.number) p.number='01';
+  if(v==='content' && !p.items) p.items=['First point','Second point'];
+  if(v==='metrics' && !p.metrics) p.metrics=[{value:'95%', label:'Describe the metric'}];
+  if(v==='twocol'){ p.leftTitle=p.leftTitle||'Problem'; p.leftBody=p.leftBody||'…'; p.rightTitle=p.rightTitle||'Our approach'; p.rightBody=p.rightBody||'…'; }
+  if(v==='cta'){ p.meta=p.meta||'Talk to the Newtuple team'; p.ctaUrl=p.ctaUrl||'newtuple.com'; }
+  if(!p.title) p.title='Title';
+}
+/* live preview without rebuilding form (keeps input focus) */
+function live(frameIdx){ if(frameIdx!=null) state.active=frameIdx; renderPreview(); persist(); }
+
+function renderAll(){ renderKindList(); renderTheme(); renderElementsPanel(); renderForm(); renderPreview(); renderExportButtons(); persist(); }
+
+/* ============================================================
+   EXPORT
+   ============================================================ */
+const EXPORTS = {
+  carousel:['png','pdf','pptx','html','docx'],
+  post:['png','pdf','html'],
+  banner:['png','pdf','html'],
+  onepager:['pdf','png','docx','html'],
+  proposal:['pdf','pptx','docx','png','html']
+};
+const EXP_LABEL = { png:'PNG', pdf:'PDF', pptx:'PPTX', docx:'DOCX', html:'HTML' };
+
+function renderExportButtons(){
+  const host = $('#export-buttons'); host.innerHTML='';
+  const list = EXPORTS[state.kind];
+  list.forEach((fmt,i)=>{
+    host.appendChild(h('button',{class:'exp-btn'+(i===0?' primary':''), 'data-fmt':fmt,
+      onClick:e=>runExport(fmt, e.currentTarget)},
+      [ h('span',{class:'ei', html:ICON.download}),
+        h('span',{}, EXP_LABEL[fmt] + (fmt==='png' && _frames.length>1 ? ' (zip)' : '')) ]));
+  });
+}
+
+function status(msg){ $('#export-status').textContent = msg||''; }
+function toast(msg, err){
+  const t=$('#toast'); t.textContent=msg; t.className='toast show'+(err?' err':'');
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.className='toast',2600);
+}
+
+/* render every frame at true px into an offscreen host and capture to canvas */
+async function captureFrames(scale){
+  await document.fonts.ready;
+  const host = h('div',{style:{position:'fixed', left:'-100000px', top:'0', zIndex:'-1'}});
+  document.body.appendChild(host);
+  const out = [];
+  const ov = state.overrides[state.kind] || {};
+  try {
+    for(let i=0;i<_frames.length;i++){
+      const f = _frames[i];
+      const el = f.build();
+      el.style.boxShadow = 'none';
+      applyOverridesTo(el, ov);
+      const dl = decorLayer(state.kind, i, false); if(dl) el.appendChild(dl);
+      host.appendChild(el);
+      const canvas = await html2canvas(el, {scale: scale||2, backgroundColor:null, useCORS:true, logging:false, width:f.w, height:f.h});
+      out.push({canvas, w:f.w, h:f.h, label:f.label});
+      host.removeChild(el);
+    }
+  } finally { document.body.removeChild(host); }
+  return out;
+}
+const canvasBlob = c => new Promise(res=>c.toBlob(res,'image/png'));
+
+async function runExport(fmt, btn){
+  const orig = btn.innerHTML; btn.disabled=true;
+  btn.innerHTML = '<span class="ei">'+ICON.download+'</span><span>…</span>';
+  try {
+    await EXPORTERS[fmt]();
+    toast(`Exported ${EXP_LABEL[fmt]}`);
+  } catch(err){
+    console.error(err); toast('Export failed: '+(err.message||err), true);
+  } finally { btn.disabled=false; btn.innerHTML=orig; status(''); }
+}
+
+const fileBase = ()=>KINDS[state.kind].file;
+
+const EXPORTERS = {
+  async png(){
+    status('Rendering…');
+    const caps = await captureFrames(2);
+    if(caps.length===1){
+      const blob = await canvasBlob(caps[0].canvas);
+      saveAs(blob, fileBase()+'.png');
+    } else {
+      status('Zipping…');
+      const zip = new JSZip();
+      for(let i=0;i<caps.length;i++){
+        const blob = await canvasBlob(caps[i].canvas);
+        zip.file(`${fileBase()}-${String(i+1).padStart(2,'0')}.png`, blob);
+      }
+      const out = await zip.generateAsync({type:'blob'});
+      saveAs(out, fileBase()+'-png.zip');
+    }
+  },
+  async pdf(){
+    status('Rendering…');
+    const caps = await captureFrames(2);
+    const { jsPDF } = window.jspdf;
+    const first = caps[0];
+    const pdf = new jsPDF({unit:'px', format:[first.w, first.h], orientation: first.w>first.h?'l':'p'});
+    caps.forEach((c,i)=>{
+      if(i>0) pdf.addPage([c.w, c.h], c.w>c.h?'l':'p');
+      pdf.addImage(c.canvas.toDataURL('image/png'), 'PNG', 0, 0, c.w, c.h);
+    });
+    pdf.save(fileBase()+'.pdf');
+  },
+  async pptx(){
+    status('Rendering…');
+    const caps = await captureFrames(2);
+    const pptx = new PptxGenJS();
+    const wIn = caps[0].w/96, hIn = caps[0].h/96;
+    pptx.defineLayout({name:'NT', width:wIn, height:hIn});
+    pptx.layout = 'NT';
+    caps.forEach(c=>{
+      const slide = pptx.addSlide();
+      slide.addImage({data:c.canvas.toDataURL('image/png'), x:0, y:0, w:wIn, h:hIn});
+    });
+    await pptx.writeFile({fileName:fileBase()+'.pptx'});
+  },
+  async html(){
+    status('Building…');
+    const ov = state.overrides[state.kind] || {};
+    const wrap = _frames.map((f,i)=>{ const el=f.build(); el.style.boxShadow='var(--sh)';
+      applyOverridesTo(el, ov); const dl=decorLayer(state.kind, i, false); if(dl) el.appendChild(dl);
+      return el.outerHTML; }).join('\n');
+    const doc = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<title>${KINDS[state.kind].name} — Newtuple</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<style>:root{--sh:0 18px 48px rgba(14,19,32,0.12)}*{box-sizing:border-box}body{margin:0;background:#EEF0F4;font-family:'Inter',sans-serif;display:flex;flex-direction:column;align-items:center;gap:28px;padding:40px}.nt-frame{position:relative;overflow:hidden}img{display:block}</style>
+</head><body>\n${wrap}\n</body></html>`;
+    saveAs(new Blob([doc],{type:'text/html'}), fileBase()+'.html');
+  },
+  async docx(){
+    status('Building…');
+    const D = window.docx;
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = D;
+    const COB = '0047AB', INK='0E1320', BODY='4B5563', MUT='6B7686';
+    const kids = [];
+    const lbl = t => new Paragraph({ spacing:{after:80}, children:[ new TextRun({text:(t||'').toUpperCase(), bold:true, color:MUT, size:18, characterSpacing:30}) ] });
+    const head = (t,sz)=> new Paragraph({ spacing:{after:140}, children: emRuns(t, INK, sz||40, COB) });
+    const para = t => new Paragraph({ spacing:{after:140}, children: emRuns(t, BODY, 22, COB) });
+    /* emphasis-aware runs */
+    function emRuns(s, color, size, em){
+      const parts = (s||'').split(/(\*\*.+?\*\*)/g).filter(Boolean);
+      return parts.map(p=>{ const m=p.match(/^\*\*(.+?)\*\*$/);
+        return new TextRun({ text:m?m[1]:p, color:m?em:color, bold:!!m, size }); });
+    }
+    const d = state.data[state.kind];
+    /* brand header */
+    kids.push(new Paragraph({ spacing:{after:200}, children:[ new TextRun({text:'NEWTUPLE', bold:true, color:COB, size:28, characterSpacing:40}) ] }));
+
+    if(state.kind==='carousel'){
+      d.slides.forEach((s,i)=>{
+        if(s.kicker) kids.push(lbl(s.kicker));
+        kids.push(head(s.title, 36));
+        if(s.type==='list'){ (s.items||[]).forEach(it=> kids.push(new Paragraph({ bullet:{level:0}, spacing:{after:60}, children: emRuns(it, BODY, 22, COB) }))); }
+        else if(s.body) kids.push(para(s.body));
+        if(i<d.slides.length-1) kids.push(new Paragraph({ border:{bottom:{style:BorderStyle.SINGLE, size:6, color:'E2E6EC', space:8}}, spacing:{after:200} }));
+      });
+    } else if(state.kind==='onepager'){
+      if(d.eyebrow) kids.push(lbl(d.eyebrow));
+      kids.push(head(d.title, 44));
+      if(d.intro) kids.push(para(d.intro));
+      d.features.forEach(f=>{ kids.push(new Paragraph({ spacing:{after:40}, children:[ new TextRun({text:f.title, bold:true, color:INK, size:24}) ] })); kids.push(para(f.desc)); });
+      if(d.metrics.length){ kids.push(new Paragraph({ spacing:{before:120, after:40}, children: d.metrics.map(m=> new TextRun({ text:`   ${m.value}  ${m.label}    `, color:COB, bold:true, size:24 })) })); }
+      kids.push(new Paragraph({ spacing:{before:160}, children:[ new TextRun({text:plain(d.ctaText)+'   ', color:INK, size:24}), new TextRun({text:d.ctaUrl, color:COB, bold:true, size:24}) ] }));
+    } else if(state.kind==='proposal'){
+      const subhead = (t)=> new Paragraph({ spacing:{after:40}, children:[ new TextRun({text:t||'', bold:true, color:INK, size:24}) ] });
+      d.pages.forEach((p,i)=>{
+        if(p.kicker) kids.push(lbl(p.kicker));
+        if(p.type==='section' && p.number) kids.push(new Paragraph({ spacing:{after:40}, children:[ new TextRun({text:p.number, bold:true, color:COB, size:48}) ] }));
+        if(p.title) kids.push(head(p.title, p.type==='cover'||p.type==='cta'||p.type==='section' ? 40 : 30));
+        if(p.subtitle) kids.push(para(p.subtitle));
+        if(p.body) kids.push(para(p.body));
+        if(p.type==='content') (p.items||[]).forEach(it=> kids.push(new Paragraph({ bullet:{level:0}, spacing:{after:60}, children: emRuns(it, BODY, 22, COB) })));
+        if(p.type==='twocol'){ kids.push(subhead(p.leftTitle)); kids.push(para(p.leftBody)); kids.push(subhead(p.rightTitle)); kids.push(para(p.rightBody)); }
+        if(p.type==='metrics') (p.metrics||[]).forEach(m=> kids.push(new Paragraph({ spacing:{after:60}, children:[ new TextRun({text:(m.value||'')+'   ', bold:true, color:COB, size:28}), new TextRun({text:m.label||'', color:BODY, size:22}) ] })));
+        if(p.type==='cta' && (p.meta||p.ctaUrl)) kids.push(new Paragraph({ spacing:{before:80}, children:[ new TextRun({text:plain(p.meta)+'   ', color:INK, size:24}), new TextRun({text:p.ctaUrl||'', color:COB, bold:true, size:24}) ] }));
+        if(i<d.pages.length-1) kids.push(new Paragraph({ border:{bottom:{style:BorderStyle.SINGLE, size:6, color:'E2E6EC', space:8}}, spacing:{after:200} }));
+      });
+    } else {
+      if(d.kicker) kids.push(lbl(d.kicker));
+      kids.push(head(d.title, 40));
+      if(d.body) kids.push(para(d.body));
+      if(d.subtitle) kids.push(para(d.subtitle));
+      if(d.attribution) kids.push(para(d.attribution));
+      if(d.metric) kids.push(new Paragraph({children:[ new TextRun({text:d.metric, color:COB, bold:true, size:56}) ]}));
+    }
+    const doc = new Document({ styles:{ default:{ document:{ run:{ font:'Inter' } } } }, sections:[{ properties:{}, children:kids }] });
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, fileBase()+'.docx');
+  }
+};
+
+/* ============================================================
+   DIRECT-MANIPULATION EDITOR
+   Click to select · double-click to edit text · drag to move ·
+   handle to resize · brand-locked toolbar. All edits write back
+   to state (content) or state.overrides[kind][bindPath] (style/pos).
+   ============================================================ */
+const WEIGHTS = [200,300,400,500,600,700];
+const SWATCHES = [
+  ['Cobalt', C.cobalt], ['Cyan', C.cyan], ['Ink', C.gray900], ['Body', C.gray700],
+  ['Muted', C.gray500], ['White', C.white], ['Success', C.success], ['Highlight', C.highlight]
+];
+let _sel = null, _selEl = null, _box = null, _bar = null, _gx = null, _gy = null, _editing = false;
+let _selKind = 'text', _selDecorId = null, _dbar = null;
+
+const ov = () => (state.overrides[state.kind] = state.overrides[state.kind] || {});
+const bindOf = el => el.getAttribute('data-bind');
+function setOv(el, prop, val){ const b = bindOf(el); (ov()[b] = ov()[b] || {})[prop] = val; }
+function mut(fn){ pushUndo(); fn(); applyOverrides(_frameEl); positionChrome(); persist(); }
+
+function applyOverridesTo(frameEl, o){
+  if(!frameEl || !o) return;
+  frameEl.querySelectorAll('[data-bind]').forEach(el=>{
+    const s = o[el.getAttribute('data-bind')]; if(!s) return;
+    if(s.fontSize)  el.style.fontSize = s.fontSize;
+    if(s.fontWeight)el.style.fontWeight = s.fontWeight;
+    if(s.color)     el.style.color = s.color;
+    if(s.textAlign) el.style.textAlign = s.textAlign;
+    if(s.maxWidth)  el.style.maxWidth = s.maxWidth;
+    if(s.dx || s.dy) el.style.transform = `translate(${s.dx||0}px, ${s.dy||0}px)`;
+  });
+}
+function applyOverrides(frameEl){ applyOverridesTo(frameEl, state.overrides[state.kind] || {}); }
+
+function editorInitChrome(){
+  _box = h('div',{class:'nt-selbox', style:{display:'none'}},
+    [ h('div',{class:'nt-handle nt-handle-br', onpointerdown:beginResize}) ]);
+  _gx = h('div',{class:'nt-guide nt-guide-v', style:{display:'none'}});
+  _gy = h('div',{class:'nt-guide nt-guide-h', style:{display:'none'}});
+  _bar = buildToolbar();
+  _dbar = buildDecorToolbar();
+  document.body.append(_gx, _gy, _box, _bar, _dbar);
+}
+function buildDecorToolbar(){
+  const seg = (children)=> h('div',{class:'tb-seg'}, children);
+  const btn = (label, title, fn, cls)=> h('button',{class:'tb-btn'+(cls?' '+cls:''), title, onclick:fn}, label);
+  return h('div',{class:'nt-toolbar', style:{display:'none'}, onpointerdown:e=>e.stopPropagation()},[
+    h('div',{class:'tb-seg tb-swatches'}, [['Cobalt',C.cobalt],['Cyan',C.cyan],['White',C.white],['Ink',C.gray900]].map(([n,hex])=>
+      h('button',{class:'tb-swatch', title:'Recolor '+n, style:{background:hex, border: hex===C.white?'1px solid '+C.gray300:'none'}, onclick:()=>setDecorColor(hex)}))),
+    seg([ btn('◑','Cycle opacity', cycleDecorOpacity) ]),
+    seg([ btn('⌫ Remove','Delete element', deleteDecor, 'tb-reset') ])
+  ]);
+}
+
+function buildToolbar(){
+  const seg = (children)=> h('div',{class:'tb-seg'}, children);
+  const btn = (label, title, fn, cls)=> h('button',{class:'tb-btn'+(cls?' '+cls:''), title, onclick:fn}, label);
+  const bar = h('div',{class:'nt-toolbar', style:{display:'none'}, onpointerdown:e=>e.stopPropagation()},[
+    seg([ btn('A−','Smaller', ()=> stepSize(-4)), btn('A+','Larger', ()=> stepSize(4)) ]),
+    seg([ btn('W−','Lighter', ()=> stepWeight(-1)), btn('W+','Bolder', ()=> stepWeight(1)) ]),
+    seg([ btn('⟸','Align left', ()=> setAlign('left')), btn('≡','Center', ()=> setAlign('center')), btn('⟹','Align right', ()=> setAlign('right')) ]),
+    h('div',{class:'tb-seg tb-swatches'}, SWATCHES.map(([name,hex])=>
+      h('button',{class:'tb-swatch', title:name, style:{background:hex, border: hex===C.white?'1px solid '+C.gray300:'none'}, onclick:()=> setColor(hex)}))),
+    seg([ btn('Edit','Edit text (or double-click)', ()=> _selEl && enterEdit(_selEl)),
+          btn('Reset','Reset this element', resetEl, 'tb-reset') ])
+  ]);
+  return bar;
+}
+
+function curSize(el){ const o = ov()[bindOf(el)]; return parseFloat(o && o.fontSize) || parseFloat(getComputedStyle(el).fontSize) || 16; }
+function curWeight(el){ const o = ov()[bindOf(el)]; return parseInt(o && o.fontWeight) || parseInt(getComputedStyle(el).fontWeight) || 400; }
+
+function stepSize(d){ if(!_selEl) return; mut(()=> setOv(_selEl,'fontSize', Math.max(8, Math.round(curSize(_selEl)+d))+'px')); }
+function stepWeight(dir){
+  if(!_selEl) return;
+  let i = WEIGHTS.indexOf(curWeight(_selEl)); if(i<0) i = 2;
+  i = Math.max(0, Math.min(WEIGHTS.length-1, i+dir));
+  mut(()=> setOv(_selEl,'fontWeight', WEIGHTS[i]));
+}
+function setAlign(a){ if(_selEl) mut(()=> setOv(_selEl,'textAlign', a)); }
+function setColor(hex){ if(_selEl) mut(()=> setOv(_selEl,'color', hex)); }
+function resetEl(){ if(!_selEl) return; pushUndo(); delete ov()[bindOf(_selEl)]; persist(); renderPreview(); }
+
+/* ---------- selection ---------- */
+function selectEl(el){
+  if(_selEl) _selEl.classList.remove('nt-selected');
+  _selKind = 'text'; _selDecorId = null;
+  _sel = bindOf(el); _selEl = el; el.classList.add('nt-selected');
+  _box.style.display = 'block'; _bar.style.display = 'flex'; _dbar.style.display = 'none';
+  positionChrome();
+}
+function selectDecor(div){
+  if(_selEl) _selEl.classList.remove('nt-selected');
+  _selKind = 'decor'; _selDecorId = div.getAttribute('data-decor'); _sel = null;
+  _selEl = div; div.classList.add('nt-selected');
+  _box.style.display = 'block'; _bar.style.display = 'none'; _dbar.style.display = 'flex';
+  positionChrome();
+}
+function editorDeselect(){
+  if(_selEl) _selEl.classList.remove('nt-selected');
+  _sel = null; _selEl = null; _selKind = 'text'; _selDecorId = null;
+  if(_box) _box.style.display = 'none';
+  if(_bar) _bar.style.display = 'none';
+  if(_dbar) _dbar.style.display = 'none';
+}
+function editorReselect(){
+  if(!_frameEl) return;
+  if(_selKind==='decor' && _selDecorId){
+    const dv = _frameEl.querySelector(`.nt-decor[data-decor="${_selDecorId}"]`);
+    if(dv){ _selEl = dv; dv.classList.add('nt-selected'); _box.style.display='block'; _dbar.style.display='flex'; _bar.style.display='none'; positionChrome(); }
+    else editorDeselect();
+    return;
+  }
+  if(!_sel){ return; }
+  const el = _frameEl.querySelector(`[data-bind="${CSS.escape(_sel)}"]`);
+  if(el){ _selEl = el; el.classList.add('nt-selected'); _box.style.display='block'; _bar.style.display='flex'; _dbar.style.display='none'; positionChrome(); }
+  else editorDeselect();
+}
+function positionChrome(){
+  if(!_selEl || !_box || _box.style.display==='none') return;
+  const bar = _selKind==='decor' ? _dbar : _bar;
+  const r = _selEl.getBoundingClientRect();
+  Object.assign(_box.style, { left:r.left+'px', top:r.top+'px', width:r.width+'px', height:r.height+'px' });
+  const bw = bar.offsetWidth || 320;
+  let bx = r.left + r.width/2 - bw/2;
+  bx = Math.max(8, Math.min(window.innerWidth - bw - 8, bx));
+  let by = r.top - bar.offsetHeight - 10;
+  if(by < 8) by = r.bottom + 10;
+  Object.assign(bar.style, { left:bx+'px', top:by+'px' });
+}
+
+/* ---------- inline text editing ---------- */
+function enterEdit(el){
+  _editing = true;
+  const path = bindOf(el);
+  const raw = getByPath(state.data[state.kind], path);
+  pushUndo();
+  el.textContent = raw==null ? '' : String(raw);   // show raw (with ** markers) while editing
+  el.contentEditable = 'true'; el.spellcheck = false;
+  el.classList.add('nt-editing');
+  el.focus();
+  const range = document.createRange(); range.selectNodeContents(el);
+  const seln = getSelection(); seln.removeAllRanges(); seln.addRange(range);
+  const commit = (cancel)=>{
+    el.removeEventListener('blur', onBlur); el.removeEventListener('keydown', onKey);
+    el.contentEditable = 'false'; el.classList.remove('nt-editing'); _editing = false;
+    if(!cancel){ setByPath(state.data[state.kind], path, el.innerText); persist(); }
+    renderPreview();
+  };
+  const onBlur = ()=> commit(false);
+  const onKey = (e)=>{
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); el.blur(); }
+    else if(e.key==='Escape'){ e.preventDefault(); commit(true); }
+  };
+  el.addEventListener('blur', onBlur); el.addEventListener('keydown', onKey);
+}
+
+/* ---------- drag to move ---------- */
+function editorAttach(frameEl){
+  frameEl.addEventListener('pointerdown', onFramePointerDown);
+  frameEl.addEventListener('dblclick', (e)=>{ const el = e.target.closest('[data-bind]'); if(el) enterEdit(el); });
+}
+function onFramePointerDown(e){
+  if(_editing) return;
+  if(state.markupOn){ addPinAt(e); return; }
+  const dc = e.target.closest('.nt-decor');
+  if(dc){ if(dc !== _selEl) selectDecor(dc); beginDecorDrag(e, dc); return; }
+  const el = e.target.closest('[data-bind]');
+  if(!el){ editorDeselect(); return; }
+  if(el !== _selEl) selectEl(el);
+  beginDrag(e, el);
+}
+function beginDrag(e, el){
+  const b = bindOf(el); const o0 = ov()[b] || {};
+  const startX = e.clientX, startY = e.clientY;
+  const dx0 = o0.dx||0, dy0 = o0.dy||0;
+  let moved = false, pushed = false;
+  const frameRect = ()=> _frameEl.getBoundingClientRect();
+  const move = (ev)=>{
+    const ddx = (ev.clientX-startX), ddy = (ev.clientY-startY);
+    if(!moved && Math.abs(ddx)+Math.abs(ddy) < 3) return;
+    if(!moved){ moved = true; }
+    if(!pushed){ pushUndo(); pushed = true; }
+    let nx = dx0 + ddx/_scale, ny = dy0 + ddy/_scale;
+    // center snap (screen-space)
+    const fr = frameRect();
+    el.style.transform = `translate(${nx}px, ${ny}px)`;
+    const r = el.getBoundingClientRect();
+    const fcx = fr.left + fr.width/2, fcy = fr.top + fr.height/2;
+    const diffx = (r.left + r.width/2) - fcx, diffy = (r.top + r.height/2) - fcy;
+    if(Math.abs(diffx) < 8){ nx -= diffx/_scale; showGuide(_gx, fcx, fr.top, fr.height, true); } else hideGuide(_gx);
+    if(Math.abs(diffy) < 8){ ny -= diffy/_scale; showGuide(_gy, fr.left, fcy, fr.width, false); } else hideGuide(_gy);
+    el.style.transform = `translate(${nx}px, ${ny}px)`;
+    setOv(el,'dx',Math.round(nx)); setOv(el,'dy',Math.round(ny));
+    positionChrome();
+  };
+  const up = ()=>{
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+    hideGuide(_gx); hideGuide(_gy);
+    if(moved) persist();
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+}
+function showGuide(g, x, y, len, vertical){
+  g.style.display='block';
+  if(vertical) Object.assign(g.style,{left:x+'px', top:y+'px', height:len+'px'});
+  else Object.assign(g.style,{left:x+'px', top:y+'px', width:len+'px'});
+}
+function hideGuide(g){ if(g) g.style.display='none'; }
+
+/* ---------- resize handle = scale font size ---------- */
+function beginResize(e){
+  e.stopPropagation(); e.preventDefault();
+  if(!_selEl) return;
+  let pushed = false;
+  if(_selKind==='decor'){
+    const d = getDecor(); if(!d) return;
+    const sx = e.clientX, w0 = d.w;
+    const move = (ev)=>{ if(!pushed){ pushUndo(); pushed=true; }
+      d.w = Math.max(40, Math.round(w0 + (ev.clientX-sx)/_scale)); _selEl.style.width = d.w+'px'; positionChrome(); };
+    const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); persist(); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); return;
+  }
+  const el = _selEl, start = e.clientY, s0 = curSize(el);
+  const move = (ev)=>{
+    if(!pushed){ pushUndo(); pushed = true; }
+    const ns = Math.max(8, Math.round(s0 + (ev.clientY-start)/_scale * 0.6));
+    setOv(el,'fontSize', ns+'px'); el.style.fontSize = ns+'px'; positionChrome();
+  };
+  const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); persist(); };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+}
+
+/* ---------- smart alignment snapping ---------- */
+const SNAP_TH = 7;          // screen px
+function snapDrag(el){
+  const fr = _frameEl.getBoundingClientRect(), r = el.getBoundingClientRect();
+  const mvx = fr.width*0.07, mvy = fr.height*0.07;
+  const vt = [fr.left, fr.left+mvx, fr.left+fr.width/2, fr.right-mvx, fr.right];
+  const ht = [fr.top, fr.top+mvy, fr.top+fr.height/2, fr.bottom-mvy, fr.bottom];
+  const va = [r.left, r.left+r.width/2, r.right];
+  const ha = [r.top, r.top+r.height/2, r.bottom];
+  let bx=Infinity, gx=null; vt.forEach(t=>va.forEach(a=>{ const d=t-a; if(Math.abs(d)<Math.abs(bx)){ bx=d; gx=t; } }));
+  let ax=0; if(Math.abs(bx)<=SNAP_TH) ax=bx; else gx=null;
+  let by=Infinity, gy=null; ht.forEach(t=>ha.forEach(a=>{ const d=t-a; if(Math.abs(d)<Math.abs(by)){ by=d; gy=t; } }));
+  let ay=0; if(Math.abs(by)<=SNAP_TH) ay=by; else gy=null;
+  if(gx!=null) showGuide(_gx, gx, fr.top, fr.height, true); else hideGuide(_gx);
+  if(gy!=null) showGuide(_gy, fr.left, gy, fr.width, false); else hideGuide(_gy);
+  return {ax, ay};
+}
+
+/* ---------- one-click alignment ---------- */
+function alignSeg(){
+  const b=(t,title,where)=>h('button',{class:'tb-btn tb-min', title:'Align '+title, onclick:()=>alignSelected(where)}, t);
+  return h('div',{class:'tb-seg'},[ b('L','left','left'), b('C','center','hcenter'), b('R','right','right'),
+    h('span',{class:'tb-div'}), b('T','top','top'), b('M','middle','vcenter'), b('B','bottom','bottom') ]);
+}
+function alignSelected(where){
+  if(!_selEl) return;
+  const fr = _frames[state.active]; const frame = _frameEl.getBoundingClientRect();
+  const m = 0.07;
+  if(_selKind==='decor'){
+    const d = getDecor(); if(!d) return;
+    const r = _selEl.getBoundingClientRect(); const wF = r.width/_scale, hF = r.height/_scale;
+    pushUndo();
+    if(where==='left') d.x = Math.round(fr.w*m);
+    if(where==='hcenter') d.x = Math.round((fr.w-wF)/2);
+    if(where==='right') d.x = Math.round(fr.w - fr.w*m - wF);
+    if(where==='top') d.y = Math.round(fr.h*m);
+    if(where==='vcenter') d.y = Math.round((fr.h-hF)/2);
+    if(where==='bottom') d.y = Math.round(fr.h - fr.h*m - hF);
+    persist(); renderPreview();
+  } else {
+    const el = _selEl, prev = el.style.transform; el.style.transform = 'none';
+    const nat = el.getBoundingClientRect(); el.style.transform = prev;
+    let tx=null, ty=null;
+    if(where==='left') tx = frame.left + frame.width*m;
+    if(where==='hcenter') tx = frame.left + frame.width/2 - nat.width/2;
+    if(where==='right') tx = frame.right - frame.width*m - nat.width;
+    if(where==='top') ty = frame.top + frame.height*m;
+    if(where==='vcenter') ty = frame.top + frame.height/2 - nat.height/2;
+    if(where==='bottom') ty = frame.bottom - frame.height*m - nat.height;
+    pushUndo();
+    if(tx!=null) setOv(el,'dx', Math.round((tx-nat.left)/_scale));
+    if(ty!=null) setOv(el,'dy', Math.round((ty-nat.top)/_scale));
+    applyOverrides(_frameEl); positionChrome(); persist();
+  }
+}
+function nudgeSel(dx, dy){
+  if(!_selEl) return; pushUndo();
+  if(_selKind==='decor'){ const d=getDecor(); if(!d) return; d.x=(d.x||0)+dx; d.y=(d.y||0)+dy;
+    _selEl.style.left=d.x+'px'; _selEl.style.top=d.y+'px'; }
+  else { const o=ov()[bindOf(_selEl)]||{}; setOv(_selEl,'dx',(o.dx||0)+dx); setOv(_selEl,'dy',(o.dy||0)+dy); applyOverrides(_frameEl); }
+  positionChrome(); persist();
+}
+function duplicateDecor(){
+  const d=getDecor(); if(!d) return; pushUndo();
+  const c=JSON.parse(JSON.stringify(d)); c.id=uid(); c.x=(d.x||0)+24; c.y=(d.y||0)+24;
+  state.decor[state.kind].push(c); _selDecorId=c.id; persist(); renderPreview(); toast('Duplicated');
+}
+
+/* ---------- markup (review annotations) ---------- */
+function renderMarkup(frameEl){
+  const old = frameEl.querySelector('.nt-markup'); if(old) old.remove();
+  const pins = state.markup[state.kind] || [];
+  if(!pins.length && !state.markupOn) return;
+  const layer = h('div',{class:'nt-markup', style:{position:'absolute', inset:'0', pointerEvents:'none'}});
+  pins.forEach((p,i)=>{
+    const pin = h('div',{class:'nt-pin', style:{left:p.x+'px', top:p.y+'px', pointerEvents:'auto'}},[
+      h('div',{class:'nt-pin-dot'}, String(i+1)),
+      h('div',{class:'nt-pin-note', contenteditable:'true', spellcheck:'false',
+        onblur:e=>{ p.text = e.target.innerText; persist(); },
+        onpointerdown:e=>e.stopPropagation()}, p.text||''),
+      h('button',{class:'nt-pin-del', title:'Delete pin', onpointerdown:e=>e.stopPropagation(),
+        onclick:()=>{ pushUndo(); pins.splice(i,1); persist(); renderMarkup(_frameEl); }}, '✕')
+    ]);
+    layer.appendChild(pin);
+  });
+  frameEl.appendChild(layer);
+}
+function addPinAt(e){
+  const r = _frameEl.getBoundingClientRect();
+  const x = (e.clientX - r.left)/_scale, y = (e.clientY - r.top)/_scale;
+  pushUndo();
+  (state.markup[state.kind] = state.markup[state.kind] || []).push({ x:Math.round(x), y:Math.round(y), text:'' });
+  persist(); renderMarkup(_frameEl);
+}
+
+/* ============================================================
+   DESIGN ELEMENTS — placeable brand decorations
+   ============================================================ */
+const ELEMENTS = {
+  chevron: { name:'Chevron flow', w:420, op:1, svg:
+    '<svg viewBox="0 0 360 120" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="#0047AB" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"><path d="M40 30 96 60 40 90" opacity="0.35"/><path d="M120 30 176 60 120 90" opacity="0.6"/><path d="M200 30 256 60 200 90" opacity="0.85"/><path d="M280 30 336 60 280 90" stroke="#00B8D9"/></g></svg>' },
+  circuit: { name:'Circuit corner', w:300, op:1, svg:
+    '<svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="#0047AB" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M36 36 H150 a24 24 0 0 1 24 24 V120"/><path d="M36 84 H96 a24 24 0 0 1 24 24 V176"/><path d="M84 36 V72 a24 24 0 0 0 24 24 H168"/></g><g fill="#0047AB"><circle cx="36" cy="36" r="9"/><circle cx="36" cy="84" r="6"/><circle cx="84" cy="36" r="6"/></g><g fill="#00B8D9"><circle cx="174" cy="120" r="7"/><circle cx="120" cy="176" r="7"/><circle cx="168" cy="96" r="5"/></g></svg>' },
+  quote: { name:'Quote mark', w:200, op:1, svg:
+    '<svg viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg"><g fill="#0047AB"><path d="M20 150 C20 96 48 60 96 50 L96 78 C70 86 58 104 58 124 L88 124 L88 150 Z"/><path d="M112 150 C112 96 140 60 188 50 L188 78 C162 86 150 104 150 124 L180 124 L180 150 Z" fill="#00B8D9"/></g></svg>' },
+  divider: { name:'Gradient divider', w:520, op:1, svg:
+    '<svg viewBox="0 0 480 12" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gd" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0047AB"/><stop offset="1" stop-color="#00B8D9"/></linearGradient></defs><rect x="0" y="4" width="480" height="4" rx="2" fill="url(#gd)"/></svg>' },
+  dots: { name:'Dot field', w:340, op:0.6, svg:
+    '<svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="dt" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="8" cy="8" r="3" fill="#0047AB" opacity="0.55"/></pattern></defs><rect width="320" height="320" fill="url(#dt)"/><circle cx="92" cy="84" r="9" fill="#00B8D9"/><circle cx="232" cy="196" r="7" fill="#0047AB"/></svg>' },
+  orb: { name:'Glow orb', w:520, op:0.55, svg:
+    '<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="ob" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#2E6FD6"/><stop offset="55%" stop-color="#0047AB"/><stop offset="100%" stop-color="#0047AB" stop-opacity="0"/></radialGradient></defs><circle cx="200" cy="200" r="200" fill="url(#ob)"/></svg>' },
+  monogram: { name:'N monogram', w:160, op:1, svg:
+    '<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" rx="116" fill="#0047AB"/><path d="M150 358 V154 L362 358 V154" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="square"/><circle cx="150" cy="154" r="13" fill="#00B8D9"/><circle cx="362" cy="358" r="13" fill="#00B8D9"/></svg>' }
+};
+function decorSVG(key, color){
+  let s = ELEMENTS[key].svg;
+  if(color) s = s.split('#0047AB').join(color);
+  return s;
+}
+function getDecor(){ return (state.decor[state.kind]||[]).find(d=>d.id===_selDecorId); }
+
+function decorElList(list, idx, interactive){
+  const items = list.filter(d=>(d.frame||0)===idx);
+  if(!items.length) return null;
+  const layer = h('div',{class:'nt-decor-layer', style:{position:'absolute', inset:'0', pointerEvents:'none', zIndex:'6'}});
+  items.forEach(d=>{
+    const e = ELEMENTS[d.key]; if(!e) return;
+    const div = h('div',{class:'nt-decor', 'data-decor':d.id, style:{ position:'absolute',
+      left:(d.x||0)+'px', top:(d.y||0)+'px', width:(d.w||e.w)+'px',
+      opacity:(d.opacity!=null?d.opacity:e.op), pointerEvents: interactive?'auto':'none',
+      cursor: interactive?'move':'default' }});
+    div.innerHTML = decorSVG(d.key, d.color);
+    const svg = div.querySelector('svg');
+    if(svg){ svg.removeAttribute('width'); svg.removeAttribute('height'); svg.style.width='100%'; svg.style.height='auto'; svg.style.display='block'; }
+    layer.appendChild(div);
+  });
+  return layer;
+}
+const decorLayer = (kind, idx, interactive)=> decorElList(state.decor[kind]||[], idx, interactive);
+
+function beginDecorDrag(e, div){
+  const d = getDecor(); if(!d) return;
+  const sx=e.clientX, sy=e.clientY, x0=d.x||0, y0=d.y||0; let moved=false, pushed=false;
+  const move = (ev)=>{ const ddx=ev.clientX-sx, ddy=ev.clientY-sy;
+    if(!moved && Math.abs(ddx)+Math.abs(ddy)<3) return; moved=true;
+    if(!pushed){ pushUndo(); pushed=true; }
+    d.x=Math.round(x0+ddx/_scale); d.y=Math.round(y0+ddy/_scale);
+    div.style.left=d.x+'px'; div.style.top=d.y+'px'; positionChrome(); };
+  const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); if(moved) persist(); };
+  window.addEventListener('pointermove',move); window.addEventListener('pointerup',up);
+}
+function setDecorColor(hex){ const d=getDecor(); if(!d) return; pushUndo(); d.color=hex; persist(); renderPreview(); }
+function cycleDecorOpacity(){ const d=getDecor(); if(!d) return; const steps=[1,0.6,0.3];
+  const cur = d.opacity!=null?d.opacity:(ELEMENTS[d.key].op); let i=steps.findIndex(v=>Math.abs(v-cur)<0.06);
+  d.opacity = steps[(i+1+steps.length)%steps.length]; pushUndo(); persist(); renderPreview(); }
+function deleteDecor(){ const d=getDecor(); if(!d) return; pushUndo();
+  state.decor[state.kind] = state.decor[state.kind].filter(x=>x.id!==d.id); editorDeselect(); persist(); renderPreview(); }
+function addDecor(key){
+  const e = ELEMENTS[key]; const fr = _frames[state.active] || {w:1080, h:1080};
+  const w = e.w, x = Math.round((fr.w-w)/2), y = Math.round(fr.h*0.36);
+  pushUndo();
+  const d = { id:uid(), frame:state.active, key, x, y, w, opacity:e.op };
+  (state.decor[state.kind] = state.decor[state.kind] || []).push(d);
+  _selKind='decor'; _selDecorId=d.id;            // so renderPreview reselects it
+  persist(); renderPreview();
+  toast('Added '+e.name+' — drag to place, corner to resize');
+}
+function renderElementsPanel(){
+  const host = $('#elements-palette'); if(!host) return; host.innerHTML='';
+  Object.keys(ELEMENTS).forEach(key=>{
+    const e = ELEMENTS[key];
+    const chip = h('button',{class:'el-chip', title:'Add '+e.name, onclick:()=>addDecor(key)},
+      [ h('span',{class:'el-ico'+(['orb','monogram'].includes(key)?' on-dark':''), html:decorSVG(key,null)}),
+        h('span',{class:'el-name'}, e.name) ]);
+    host.appendChild(chip);
+  });
+}
+
+/* ============================================================
+   BRAND LIBRARY — collection of reusable, repurposable assets
+   ============================================================ */
+const clone = o => JSON.parse(JSON.stringify(o));
+const uid = () => 'a' + Date.now().toString(36) + Math.floor(Math.random()*1e6).toString(36);
+const LIB_KEY = 'nt-studio-library-v1';
+let library = [];
+function libLoad(){ try { library = JSON.parse(localStorage.getItem(LIB_KEY)||'[]'); } catch(e){ library = []; } }
+function libPersist(){ try { localStorage.setItem(LIB_KEY, JSON.stringify(library)); } catch(e){} }
+
+/* Curated starter collection — real newtuple.com copy across all 5 types */
+const STARTERS = [
+  { name:'Agentic design patterns', kind:'carousel', theme:'dark', make:()=>KINDS.carousel.defaults() },
+  { name:'Dialogtuple — feature carousel', kind:'carousel', theme:'dark', make:()=>({ slides:[
+      { type:'title', kicker:'Dialogtuple', title:'**100+ LLMs.** Native agents. One platform.',
+        body:'A multi-agent platform with prompt versioning, tracing and a built-in eval framework.' },
+      { type:'pattern', number:'01', kicker:'Integrate', title:'**100+ LLMs**, one integration layer',
+        body:'Swap models without rewrites. One-click MCP and tool integration.' },
+      { type:'pattern', number:'02', kicker:'Ship', title:'One click to **Slack, Teams, Email or API**',
+        body:'Take an agent from prototype to where your users already are.' },
+      { type:'list', kicker:'Built in', title:'Production from day one',
+        items:['Prompt versioning','Built-in tracing','Eval framework integration','SaaS, your cloud, or air-gapped'] },
+      { type:'closing', kicker:'See it live', title:'Native agents on the **OpenClaw** architecture.',
+        body:'Request a demo and ship your first agent.', footLabel:'newtuple.com/dialogtuple' } ] }) },
+  { name:'Five questions (quote)', kind:'post', theme:'light', make:()=>({ variant:'quote',
+      title:'We do not launch an agent until it can answer **five questions**.',
+      attribution:'— Newtuple · On agent readiness' }) },
+  { name:'95% document accuracy', kind:'post', theme:'dark', make:()=>({ variant:'stat',
+      kicker:'Document intelligence', metric:'95%', title:'accuracy in production',
+      body:'across **30–40k documents / month** — hours of manual work cut to seconds.' }) },
+  { name:'15 days → under 1 day', kind:'post', theme:'light', make:()=>({ variant:'stat',
+      kicker:'Incentive calculation', metric:'15d→1d', title:'cycle time, automated',
+      body:'What took **15 days** of manual work now runs in **under a day**.' }) },
+  { name:'$5M+ recovered', kind:'post', theme:'dark', make:()=>({ variant:'stat',
+      kicker:'Retail · shrinkage', metric:'$5M+', title:'recovered annually',
+      body:'Computer-vision automation on linen shrinkage, in production.' }) },
+  { name:'Build Your Agentic Enterprise', kind:'post', theme:'dark', make:()=>({ variant:'announcement',
+      kicker:'Generative AI experts', title:'Build Your **Agentic** Enterprise.',
+      body:'Scale your AI operations. Ship production-grade intelligence.', cta:'Talk to our experts' }) },
+  { name:'Generative AI Experts (banner)', kind:'banner', theme:'dark', make:()=>KINDS.banner.defaults() },
+  { name:'Dialogtuple (banner)', kind:'banner', theme:'dark', make:()=>({ kicker:'Dialogtuple',
+      title:'**100+ LLMs.** Native agents. One platform.',
+      subtitle:'Multi-agent platform with prompt versioning, tracing and a built-in eval framework.' }) },
+  { name:'Every engineer codes with AI (banner)', kind:'banner', theme:'light', make:()=>({ kicker:'The agentic enterprise',
+      title:'Every engineer codes with **AI agents**. Every PM is **AI-augmented**.',
+      subtitle:'Production-grade automation that runs all day, at scale, with governance.' }) },
+  { name:'Capability one-pager', kind:'onepager', theme:'light', make:()=>KINDS.onepager.defaults() },
+  { name:'Pension automation proposal', kind:'proposal', theme:'light', make:()=>KINDS.proposal.defaults() }
+];
+/* append custom starters from starters.js (plain {name,kind,theme,data}) */
+(window.NT_STARTERS||[]).forEach(s=>{ if(s && s.kind && KINDS[s.kind] && s.data){
+  STARTERS.push({ name:s.name||'Untitled', kind:s.kind, theme:s.theme||KINDS[s.kind].themes[0], make:()=>JSON.parse(JSON.stringify(s.data)) });
+}});
+
+/* ---------- content extract / rebuild (repurpose engine) ---------- */
+function extractContent(kind, d){
+  const n = { kicker:'', title:'', sub:'', bullets:[], metrics:[] };
+  if(kind==='carousel'){
+    const s0 = d.slides[0]||{}; n.kicker=s0.kicker||''; n.title=s0.title||''; n.sub=s0.body||'';
+    d.slides.forEach(s=>{ if(s.items) n.bullets.push(...s.items); else if(s.type==='pattern' && s.title) n.bullets.push(s.title); });
+  } else if(kind==='post'){
+    n.kicker=d.kicker||''; n.title=d.title||''; n.sub=d.body||'';
+    if(d.metric) n.metrics.push({ value:d.metric, label:plain(d.title||d.body||'') });
+    if(d.attribution) n.sub = n.sub || d.attribution;
+  } else if(kind==='banner'){
+    n.kicker=d.kicker||''; n.title=d.title||''; n.sub=d.subtitle||'';
+  } else if(kind==='onepager'){
+    n.kicker=d.eyebrow||''; n.title=d.title||''; n.sub=d.intro||'';
+    (d.features||[]).forEach(f=> n.bullets.push(f.desc ? `${f.title} — ${f.desc}` : f.title));
+    n.metrics = clone(d.metrics||[]);
+  } else if(kind==='proposal'){
+    const c = d.pages.find(p=>p.type==='cover') || d.pages[0] || {};
+    n.kicker=c.kicker||''; n.title=c.title||''; n.sub=c.subtitle||c.body||'';
+    d.pages.forEach(p=>{ if(p.items) n.bullets.push(...p.items); if(p.metrics) n.metrics.push(...p.metrics); });
+  }
+  return n;
+}
+function buildFromContent(kind, n){
+  const bl = n.bullets.length ? n.bullets : ['First point','Second point','Third point'];
+  const mt = n.metrics.length ? n.metrics : [{value:'95%',label:'Accuracy in production'}];
+  if(kind==='carousel') return { slides:[
+    { type:'title', kicker:n.kicker||'Newtuple', title:n.title||'Headline', body:n.sub },
+    { type:'list', kicker:'Highlights', title:'The key points', items:bl.slice(0,5) },
+    { type:'closing', kicker:'Your turn', title:n.title||'Let’s talk.', body:'What would you build?', footLabel:'Follow Newtuple for more' } ] };
+  if(kind==='post') return n.metrics.length
+    ? { variant:'stat', kicker:n.kicker, metric:mt[0].value, title:plain(mt[0].label||''), body:n.sub }
+    : { variant:'announcement', kicker:n.kicker, title:n.title||'Headline', body:n.sub, cta:'Talk to us' };
+  if(kind==='banner') return { kicker:n.kicker, title:n.title||'Headline', subtitle:n.sub };
+  if(kind==='onepager') return { eyebrow:n.kicker||'Overview', title:n.title||'Headline', intro:n.sub,
+    features: bl.slice(0,4).map(b=>{ const [t,...r]=String(b).split(' — '); return { title:t||'Feature', desc:r.join(' — ') }; }),
+    metrics: mt.slice(0,3), ctaText:'Build Your Agentic Enterprise.', ctaUrl:'newtuple.com' };
+  if(kind==='proposal') return { pages:[
+    { type:'cover', kicker:'Proposal', title:n.title||'Proposal', subtitle:n.sub, meta:'Prepared by Newtuple' },
+    { type:'content', kicker:'Overview', title:'Highlights', body:n.sub, items:bl.slice(0,6) },
+    { type:'metrics', kicker:'Impact', title:'Expected impact', body:'', metrics:mt.slice(0,4) },
+    { type:'cta', kicker:'Next steps', title:'Let’s build it.', body:'', meta:'Talk to the Newtuple team', ctaUrl:'newtuple.com' } ] };
+}
+
+/* ---------- load an asset into the working state ---------- */
+function loadAsset(kind, theme, data, overrides, markup, decor){
+  pushUndo();
+  state.kind = kind;
+  state.theme = KINDS[kind].themes.includes(theme) ? theme : KINDS[kind].themes[0];
+  state.data[kind] = clone(data);
+  state.overrides[kind] = clone(overrides||{});
+  state.markup[kind] = clone(markup||[]);
+  state.decor[kind] = clone(decor||[]);
+  state.active = 0; editorDeselect(); closeGallery(); renderAll();
+}
+function openEntry(e){ loadAsset(e.kind, e.theme, e.data, e.overrides, e.markup, e.decor); toast('Opened “'+e.name+'”'); }
+function openStarter(s, theme){ loadAsset(s.kind, theme||s.theme, s.make()); toast('Opened “'+s.name+'”'); }
+function openRepurposed(srcKind, srcData, targetKind){
+  loadAsset(targetKind, state.theme, buildFromContent(targetKind, extractContent(srcKind, srcData)));
+  toast('Repurposed into '+KINDS[targetKind].name);
+}
+
+/* ---------- save / manage ---------- */
+function saveCurrentToLibrary(){
+  const def = `${KINDS[state.kind].name} ${library.filter(e=>e.kind===state.kind).length+1}`;
+  const name = prompt('Save to library as:', def); if(name==null) return;
+  library.unshift({ id:uid(), name:name||def, kind:state.kind, theme:state.theme,
+    data:clone(state.data[state.kind]), overrides:clone(state.overrides[state.kind]||{}),
+    markup:clone(state.markup[state.kind]||[]), decor:clone(state.decor[state.kind]||[]), created:Date.now() });
+  libPersist(); toast('Saved to library'); if(_gallery && _gallery.style.display!=='none') refreshGallery();
+}
+function duplicateEntry(e){ const c=clone(e); c.id=uid(); c.name=e.name+' copy'; c.created=Date.now();
+  library.unshift(c); libPersist(); refreshGallery(); }
+function renameEntry(e){ const nm=prompt('Rename asset:', e.name); if(nm==null) return; e.name=nm; libPersist(); refreshGallery(); }
+function deleteEntry(e){ if(!confirm('Delete “'+e.name+'” from the library?')) return;
+  library = library.filter(x=>x.id!==e.id); libPersist(); refreshGallery(); }
+
+/* ---------- import / export ---------- */
+function exportLibrary(){
+  if(!library.length){ toast('Library is empty', true); return; }
+  saveAs(new Blob([JSON.stringify({ version:1, library }, null, 2)], {type:'application/json'}), 'newtuple-brand-library.json');
+}
+function importLibrary(file){
+  const rd = new FileReader();
+  rd.onload = ()=>{ try {
+    const obj = JSON.parse(rd.result); const items = Array.isArray(obj) ? obj : obj.library;
+    if(!Array.isArray(items)) throw new Error('bad file');
+    items.forEach(it=>{ if(it && it.kind && KINDS[it.kind]){ it.id=uid(); library.unshift(it); } });
+    libPersist(); refreshGallery(); toast(`Imported ${items.length} asset(s)`);
+  } catch(err){ toast('Import failed: '+(err.message||err), true); } };
+  rd.readAsText(file);
+}
+
+/* ---------- gallery UI ---------- */
+let _gallery = null;
+function thumbEl(kind, data, theme, overrides){
+  const fr = KINDS[kind].frames(data, theme)[0];
+  const el = fr.build();
+  applyOverridesTo(el, overrides||{});
+  const W = 248, sc = W / fr.w;
+  const box = h('div',{class:'lib-thumb', style:{width:W+'px', height:Math.round(fr.h*sc)+'px'}});
+  box.appendChild(h('div',{style:{transformOrigin:'top left', transform:`scale(${sc})`, width:fr.w+'px', height:fr.h+'px'}}, [el]));
+  return box;
+}
+function repurposeSelect(srcKind, srcData){
+  const others = Object.keys(KINDS).filter(k=>k!==srcKind);
+  return h('select',{class:'lib-repurpose', onchange:e=>{ const t=e.target.value; e.target.selectedIndex=0; if(t) openRepurposed(srcKind, srcData, t); }},
+    [ h('option',{value:''}, 'Use as…'), ...others.map(k=>h('option',{value:k}, KINDS[k].name)) ]);
+}
+function card(opts){
+  const c = h('div',{class:'lib-card'});
+  c.appendChild(thumbEl(opts.kind, opts.data, opts.theme, opts.overrides));
+  const frames = KINDS[opts.kind].frames(opts.data, opts.theme).length;
+  c.appendChild(h('div',{class:'lib-badge'}, KINDS[opts.kind].name + (frames>1?` · ${frames}`:'')));
+  c.appendChild(h('div',{class:'lib-meta'},[ h('div',{class:'lib-name'}, opts.name) ]));
+  const row = h('div',{class:'lib-actions'});
+  (opts.actions||[]).forEach(a=> row.appendChild(h('button',{class:'lib-act'+(a.cls?' '+a.cls:''), onclick:a.fn}, a.label)));
+  row.appendChild(repurposeSelect(opts.kind, opts.data));
+  c.appendChild(row);
+  if(KINDS[opts.kind].themes.length>1){
+    c.appendChild(h('div',{class:'lib-themes'},
+      KINDS[opts.kind].themes.map(th=> h('button',{class:'lib-theme-pill'+(th===opts.theme?' on':''),
+        title:'Open in '+(th==='dark'?'agentic dark':'light'), onclick:()=>opts.onTheme(th)}, th==='dark'?'Dark':'Light'))));
+  }
+  return c;
+}
+function refCard(ref){
+  const c = h('div',{class:'lib-card lib-ref'});
+  const src = ref.thumb || (ref.type==='image' ? ref.file : null);
+  if(src){
+    c.appendChild(h('div',{class:'lib-thumb lib-thumb-img'},
+      [ h('img',{src, alt:ref.title, loading:'lazy'}) ]));
+  } else {
+    c.appendChild(h('div',{class:'lib-thumb lib-doc'}, [ h('div',{class:'lib-doc-ext'}, (ref.ext||'file').toUpperCase()) ]));
+  }
+  c.appendChild(h('div',{class:'lib-badge'}, ref.group==='approved' ? 'Approved' : 'Reference'));
+  c.appendChild(h('div',{class:'lib-meta'},[ h('div',{class:'lib-name'}, ref.title) ]));
+  c.appendChild(h('div',{class:'lib-actions'},
+    [ h('a',{class:'lib-act primary', href:ref.file, target:'_blank', rel:'noopener'}, 'Open '+(ref.ext||'').toUpperCase()) ]));
+  return c;
+}
+function buildGallery(){
+  const overlay = h('div',{class:'lib-overlay', style:{display:'none'}, onclick:e=>{ if(e.target===overlay) closeGallery(); }});
+  const fileInput = h('input',{type:'file', accept:'.json,application/json', style:{display:'none'},
+    onchange:e=>{ if(e.target.files[0]) importLibrary(e.target.files[0]); e.target.value=''; }});
+  overlay.appendChild(h('div',{class:'lib-panel'},[
+    h('div',{class:'lib-head'},[
+      h('div',{class:'lib-title'},[ h('span',{class:'lib-title-main'},'Brand library'),
+        h('span',{class:'lib-title-sub nt-label'},'Reuse · repurpose · restyle') ]),
+      h('div',{class:'lib-head-actions'},[
+        h('button',{class:'ghost-btn', onclick:saveCurrentToLibrary}, '★ Save current'),
+        h('button',{class:'ghost-btn', onclick:()=>fileInput.click()}, 'Import'),
+        h('button',{class:'ghost-btn', onclick:exportLibrary}, 'Export'),
+        h('button',{class:'ghost-btn lib-close', onclick:closeGallery}, 'Close ✕') ]) ]),
+    fileInput,
+    h('div',{class:'lib-body'},[
+      h('div',{class:'rail-section-title nt-label'}, 'Starter collection'),
+      h('div',{class:'lib-grid', id:'lib-grid-starters'}),
+      h('div',{class:'rail-section-title nt-label', id:'lib-refs-title', style:{marginTop:'24px'}}, 'Approved references'),
+      h('div',{class:'lib-grid', id:'lib-grid-refs'}),
+      h('div',{class:'rail-section-title nt-label', style:{marginTop:'24px'}}, 'My library'),
+      h('div',{class:'lib-grid', id:'lib-grid-mine'}) ]) ]));
+  document.body.appendChild(overlay);
+  _gallery = overlay;
+}
+function refreshGallery(){
+  const gs = _gallery.querySelector('#lib-grid-starters'); gs.innerHTML='';
+  STARTERS.forEach(s=>{ const data=s.make();
+    gs.appendChild(card({ name:s.name, kind:s.kind, theme:s.theme, data,
+      actions:[ {label:'Open', cls:'primary', fn:()=>openStarter(s)} ],
+      onTheme:(th)=>openStarter(s, th) })); });
+  const refs = window.NT_REFERENCES || [];
+  const gr = _gallery.querySelector('#lib-grid-refs'), rt = _gallery.querySelector('#lib-refs-title');
+  gr.innerHTML='';
+  if(!refs.length){ rt.style.display='none'; gr.style.display='none'; }
+  else { rt.style.display=''; gr.style.display=''; refs.forEach(r=> gr.appendChild(refCard(r))); }
+
+  const gm = _gallery.querySelector('#lib-grid-mine'); gm.innerHTML='';
+  if(!library.length){ gm.appendChild(h('div',{class:'lib-empty'}, 'Nothing saved yet — design something, then “★ Save current”.')); }
+  library.forEach(e=>{
+    gm.appendChild(card({ name:e.name, kind:e.kind, theme:e.theme, data:e.data, overrides:e.overrides,
+      actions:[ {label:'Open', cls:'primary', fn:()=>openEntry(e)},
+                {label:'Duplicate', fn:()=>duplicateEntry(e)},
+                {label:'Rename', fn:()=>renameEntry(e)},
+                {label:'Delete', cls:'danger', fn:()=>deleteEntry(e)} ],
+      onTheme:(th)=>{ loadAsset(e.kind, th, e.data, e.overrides, e.markup); toast('Opened “'+e.name+'” ('+th+')'); } })); });
+}
+function openGallery(){ if(!_gallery) buildGallery(); refreshGallery(); _gallery.style.display='flex'; }
+function closeGallery(){ if(_gallery) _gallery.style.display='none'; }
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+function toggleMarkup(btn){
+  state.markupOn = !state.markupOn;
+  btn.classList.toggle('on', state.markupOn);
+  $('#stage').classList.toggle('markup-mode', state.markupOn);
+  if(state.markupOn) editorDeselect();
+  renderMarkup(_frameEl);
+  toast(state.markupOn ? 'Markup on — click the design to drop a comment pin' : 'Markup off');
+}
+function resetAll(){
+  if(!confirm('Reset this '+KINDS[state.kind].name+' to the brand template? Your tweaks on it will be cleared.')) return;
+  pushUndo();
+  state.data[state.kind] = KINDS[state.kind].defaults();
+  state.overrides[state.kind] = {}; state.markup[state.kind] = [];
+  editorDeselect(); renderAll(); persist();
+  toast('Reset to template');
+}
+function buildStageControls(){
+  const tools = document.querySelector('.stage-tools');
+  const mk = (label,title,fn,id)=> h('button',{class:'ghost-btn', id, title, onclick:(e)=>fn(e.currentTarget)}, label);
+  tools.prepend(
+    mk('↺','Undo (⌘Z)', ()=>undo()),
+    mk('↻','Redo (⇧⌘Z)', ()=>redo()),
+    mk('Markup','Toggle review markup', toggleMarkup, 'btn-markup'),
+    mk('Reset','Reset to brand template', resetAll)
+  );
+}
+function boot(){
+  $('#hdr-logo').src = A.logoCobalt;
+  loadPersisted();
+  libLoad();
+  editorInitChrome();
+  buildStageControls();
+  $('#library-open').addEventListener('click', openGallery);
+  /* optional deep-link: ?kind=onepager&theme=light */
+  const q = new URLSearchParams(location.search);
+  if(q.get('kind') && KINDS[q.get('kind')]) state.kind = q.get('kind');
+  const qt = q.get('theme');
+  if(qt && KINDS[state.kind].themes.includes(qt)) state.theme = qt;
+  else if(!KINDS[state.kind].themes.includes(state.theme)) state.theme = KINDS[state.kind].themes[0];
+  const pg = parseInt(q.get('page')); if(pg>0) state.active = pg-1;
+  renderAll();
+  $('#zoom-fit').addEventListener('click', fitStage);
+  window.addEventListener('resize', ()=>{ fitStage(); positionChrome(); });
+  $('#stage').addEventListener('scroll', positionChrome, {passive:true});
+  document.addEventListener('keydown', (e)=>{
+    if(_editing) return;
+    const meta = e.metaKey || e.ctrlKey;
+    if(meta && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); }
+    else if(e.key==='Escape') editorDeselect();
+  });
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+
+})();

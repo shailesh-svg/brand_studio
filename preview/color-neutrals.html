@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Colors" name="Neutrals" subtitle="Gray 50→900 + white/black" viewport="700x230" --><html lang="en"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .ramp{display:flex;gap:0;border-radius:12px;overflow:hidden;border:1px solid var(--border);}
+  .ramp .c{flex:1;height:64px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;font-family:var(--font-mono);font-size:9px;}
+  .lab{font-family:var(--font-mono);font-size:10px;color:var(--gray-400);text-align:center;flex:1;}
+</style>
+</head><body>
+<div class="card" style="gap:12px;">
+  <div class="cap">Neutrals — supporting grays</div>
+  <div class="ramp">
+    <div class="c" style="background:#F7F8FA;color:#9AA4B2;">50</div>
+    <div class="c" style="background:#EEF0F4;color:#9AA4B2;">100</div>
+    <div class="c" style="background:#E2E6EC;color:#6B7686;">200</div>
+    <div class="c" style="background:#CBD2DC;color:#374151;">300</div>
+    <div class="c" style="background:#9AA4B2;color:#fff;">400</div>
+    <div class="c" style="background:#6B7686;color:#fff;">500</div>
+    <div class="c" style="background:#4B5563;color:#fff;">600</div>
+    <div class="c" style="background:#374151;color:#fff;">700</div>
+    <div class="c" style="background:#0E1320;color:#fff;">900</div>
+  </div>
+  <div class="row" style="gap:14px;margin-top:4px;">
+    <div style="flex:1;display:flex;align-items:center;gap:10px;"><span style="width:36px;height:36px;border-radius:9px;background:#fff;border:1px solid var(--border);"></span><span class="hx" style="font-family:var(--font-mono);font-size:11px;color:var(--gray-400);">#FFFFFF · dominant bg</span></div>
+    <div style="flex:1;display:flex;align-items:center;gap:10px;"><span style="width:36px;height:36px;border-radius:9px;background:#000;"></span><span class="hx" style="font-family:var(--font-mono);font-size:11px;color:var(--gray-400);">#000000 · accents</span></div>
+  </div>
+</div>
+</body></html>

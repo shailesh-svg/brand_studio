@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Slides" name="LinkedIn Carousel Template" subtitle="1080×1080 · title / concept / pattern / closing slides" viewport="900x900" -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Newtuple — LinkedIn Carousel Template</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{background:#05060f;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;overflow:hidden;-webkit-font-smoothing:antialiased;}
+  #stage{position:relative;}
+  #slideWrap{border-radius:14px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55);}
+  .navbtn{position:fixed;top:50%;transform:translateY(-50%);width:52px;height:52px;border-radius:9999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);backdrop-filter:blur(10px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:30;transition:background .25s;}
+  .navbtn:hover{background:rgba(255,255,255,.18);}
+  .navbtn:disabled{opacity:.25;cursor:default;}
+  #prev{left:24px;} #next{right:24px;}
+  #dots{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:30;}
+  .dot{width:8px;height:8px;border-radius:9999px;background:rgba(255,255,255,.28);border:none;cursor:pointer;transition:all .3s;}
+  .dot.on{width:26px;background:#fff;}
+  #counter{position:fixed;top:22px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.6);font-size:13px;letter-spacing:.08em;z-index:30;font-family:'JetBrains Mono',monospace;}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+<div id="counter"></div>
+<button id="prev" class="navbtn" aria-label="Previous"><i data-lucide="arrow-left"></i></button>
+<div id="stage"><div id="slideWrap"><div id="root"></div></div></div>
+<button id="next" class="navbtn" aria-label="Next"><i data-lucide="arrow-right"></i></button>
+<div id="dots"></div>
+
+<script type="text/babel" src="SlideKit.jsx"></script>
+<script type="text/babel">
+const SLIDES = [
+  <TitleSlide />,
+  <ConceptSlide />,
+  <PatternSlide num="01" name="Reflection Pattern" desc="The agent reviews its own output before finishing a task." bullets={['Is the answer accurate?','Did I miss anything important?','Should I revise the result?']} />,
+  <ConceptSlide kick="In practice" lead="Reflection is most useful in multi-step tasks." body="An agent generating a report may validate sources before finalizing — small corrections during the process prevent larger failures later." />,
+  <PatternSlide num="02" name="ReAct Pattern" desc="Instead of one response, the agent works in cycles — reason, act, observe, adjust." bullets={['Reason about the task','Use a tool or API','Observe the result','Adjust the next step']} />,
+  <ConceptSlide kick="Why it matters" lead="ReAct lets agents interact with real systems — databases, CRMs, internal APIs." body="Reliability improves when agents move from text generation to system interaction." />,
+  <PatternSlide num="03" name="Multi-Agent Systems" desc="Complex workflows are handled by multiple specialized agents." bullets={['A research agent gathers information','A writing agent drafts the content','A review agent validates the output']} />,
+  <ConceptSlide kick="In production" lead="Successful deployments combine these patterns." body="Agents use tools through ReAct, Reflection improves output quality, and multiple agents collaborate on complex workflows." />,
+  <ClosingSlide />,
+];
+
+let idx = 0;
+const root = ReactDOM.createRoot(document.getElementById('root'));
+const counter = document.getElementById('counter');
+const prevBtn = document.getElementById('prev');
+const nextBtn = document.getElementById('next');
+const dots = document.getElementById('dots');
+
+SLIDES.forEach((_, i) => {
+  const b = document.createElement('button');
+  b.className = 'dot' + (i===0?' on':'');
+  b.onclick = () => go(i);
+  dots.appendChild(b);
+});
+
+function fit(){
+  const m = 96; // margin for arrows/dots
+  const s = Math.min((window.innerWidth - m*2)/1080, (window.innerHeight - 110)/1080);
+  document.getElementById('slideWrap').style.transform = `scale(${s})`;
+  document.getElementById('slideWrap').style.transformOrigin = 'center';
+}
+function render(){
+  root.render(SLIDES[idx]);
+  counter.textContent = String(idx+1).padStart(2,'0') + ' / ' + String(SLIDES.length).padStart(2,'0');
+  prevBtn.disabled = idx===0; nextBtn.disabled = idx===SLIDES.length-1;
+  [...dots.children].forEach((d,i)=>d.classList.toggle('on', i===idx));
+  setTimeout(()=>{ if(window.lucide) window.lucide.createIcons(); }, 30);
+}
+function go(n){ idx = Math.max(0, Math.min(SLIDES.length-1, n)); render(); }
+prevBtn.onclick = ()=>go(idx-1);
+nextBtn.onclick = ()=>go(idx+1);
+window.addEventListener('keydown', e=>{ if(e.key==='ArrowRight')go(idx+1); if(e.key==='ArrowLeft')go(idx-1); });
+let sx=0;
+window.addEventListener('touchstart', e=>sx=e.touches[0].clientX, {passive:true});
+window.addEventListener('touchend', e=>{ const dx=e.changedTouches[0].clientX-sx; if(Math.abs(dx)>50) go(idx + (dx<0?1:-1)); }, {passive:true});
+window.addEventListener('resize', fit);
+fit(); render();
+</script>
+</body>
+</html>

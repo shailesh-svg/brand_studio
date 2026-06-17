@@ -1,0 +1,6 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Newtuple N monogram app icon">
+  <rect width="512" height="512" rx="116" fill="#0047AB"/>
+  <path d="M150 358 V154 L362 358 V154" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="square"/>
+  <circle cx="150" cy="154" r="13" fill="#00B8D9"/>
+  <circle cx="362" cy="358" r="13" fill="#00B8D9"/>
+</svg>
