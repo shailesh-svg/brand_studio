@@ -440,6 +440,7 @@ function buildImportedSlide(deck, idx){
     if(sh.fill){ if(String(sh.fill).indexOf('linear')===0) st.background = sh.fill; else st.backgroundColor = sh.fill; }
     if(sh.r) st.borderRadius = (sh.r>=9999 ? '50%' : sh.r+'px');
     if(sh.bd) st.border = sh.bd[0]+'px solid '+sh.bd[1];
+    if(sh.rot) st.transform = 'rotate('+sh.rot+'deg)';
     let node;
     if(sh.t==='img'){ st.objectFit='contain'; node = h('img',{src:sh.src, style:st}); }
     else if(sh.t==='text' && sh.tx){
@@ -463,6 +464,11 @@ function buildImportedSlide(deck, idx){
   });
   return frame;
 }
+function deckFrames(d){ return (d.slides||[]).map((s,i)=>({ id:'s'+i, label:''+(i+1), w:d.w, h:d.h, build:()=>buildImportedSlide(d, i) })); }
+function deckDefaults(){ const m = window.NT_IMPORTED || {};
+  for(let a=0; a<arguments.length; a++){ for(const k in m){ if(k.indexOf(arguments[a])>=0) return JSON.parse(JSON.stringify(m[k])); } }
+  return { w:1080, h:1080, slides:[{bg:'#FFFFFF', shapes:[]}] }; }
+function isDeckKind(k){ return k==='imported' || (KINDS[k] && KINDS[k].deckKey); }
 /* shrink any imported text box that overflows (font substitution) — like PowerPoint autofit */
 function fitImported(frameEl){
   frameEl.querySelectorAll('.nt-imp-tx').forEach(t=>{
@@ -472,29 +478,59 @@ function fitImported(frameEl){
   });
 }
 
+/* native, EDITABLE PowerPoint from a deck's shape model (real text boxes, not images) */
+async function pptxNative(){
+  status('Building editable PPTX…');
+  const d = state.data[state.kind];
+  const pptx = new PptxGenJS();
+  pptx.defineLayout({ name:'NTD', width:d.w/96, height:d.h/96 }); pptx.layout = 'NTD';
+  const IN = v => +(Number(v)/96).toFixed(3);
+  const hex = c => String(c||'').replace('#','').slice(0,6) || '000000';
+  const firstHex = c => (String(c).match(/#([0-9a-fA-F]{6})/) || [null,'0047AB'])[1];
+  (d.slides||[]).forEach(sl=>{
+    const s = pptx.addSlide();
+    if(sl.bg && String(sl.bg).indexOf('linear')!==0) s.background = { color: hex(sl.bg) };
+    (sl.shapes||[]).forEach(sh=>{
+      const box = { x:IN(sh.x), y:IN(sh.y), w:IN(sh.w), h:IN(sh.h) };
+      if(sh.rot) box.rotate = sh.rot;
+      if(sh.t==='img' && sh.src){ s.addImage(Object.assign({ data:sh.src }, box)); return; }
+      const fillHex = sh.fill ? (String(sh.fill).indexOf('linear')===0 ? firstHex(sh.fill) : hex(sh.fill)) : null;
+      if(sh.t==='text' && sh.tx){
+        const paras = sh.tx.paras || [], runs = [];
+        paras.forEach(p=>{ const rs = (p.runs||[]).filter(r=>!r.br && r.s!=null);
+          rs.forEach((r,ri)=> runs.push({ text:r.s, options:{ fontFace:'Inter',
+            fontSize: Math.max(6, Math.round((r.fs||16)*(sh.tx.fscale||1)*0.75)),
+            bold:!!r.b, italic:!!r.i, underline:!!r.u, color: hex(r.col||'#0E1320'),
+            align: ({left:'left',center:'center',right:'right',justify:'justify'}[p.a]||'left'),
+            breakLine: ri===rs.length-1 } }));
+          if(!rs.length) runs.push({ text:'', options:{ breakLine:true } });
+        });
+        const opt = Object.assign({}, box, { fontFace:'Inter', margin:0, autoFit:true, shrinkText:true,
+          valign: ({t:'top',ctr:'middle',b:'bottom'}[sh.tx.anchor]||'top'),
+          align: ({left:'left',center:'center',right:'right'}[(paras[0]||{}).a]||'left') });
+        if(fillHex) opt.fill = { color: fillHex };
+        if(sh.bd) opt.line = { color: hex(sh.bd[1]), width: Math.max(0.5, sh.bd[0]*0.75) };
+        s.addText(runs.length ? runs : [{ text: sh.tx.orig||'' }], opt);
+        return;
+      }
+      const ropt = Object.assign({}, box,
+        { fill: fillHex ? { color:fillHex } : { type:'none' },
+          line: sh.bd ? { color:hex(sh.bd[1]), width:Math.max(0.5, sh.bd[0]*0.75) } : { type:'none' } });
+      s.addShape(sh.r ? pptx.ShapeType.roundRect : pptx.ShapeType.rect, ropt);
+    });
+  });
+  if(window.__pptxTest){ window.__pptxB64 = await pptx.write({ outputType:'base64' }); return; }
+  await pptx.writeFile({ fileName: fileBase()+'.pptx' });
+}
+
 /* ============================================================
    KIND REGISTRY
    ============================================================ */
 const KINDS = {
   carousel: {
-    name:'LinkedIn Carousel', sub:'1080×1080 · multi-slide', icon:'layers', themes:['dark','light'],
-    defaults(){ return { slides:[
-      { type:'title', kicker:'Most AI agents fail in production',
-        title:'The problem usually is not the model. It is the **architecture**.',
-        body:'5 agentic design patterns we use to ship production-grade AI.' },
-      { type:'pattern', number:'01', kicker:'Pattern', title:'**ReAct** — reason, then act',
-        body:'Interleave reasoning traces with tool calls so the agent decides its next step from real observations, not a frozen plan.' },
-      { type:'pattern', number:'02', kicker:'Pattern', title:'**Reflection** loops',
-        body:'A critic pass reviews the agent’s own output before it ships — catching errors the first draft missed.' },
-      { type:'list', kicker:'In practice', title:'Where these patterns earn their keep',
-        items:['Multi-agent orchestration with clear hand-offs','Observability on every step and tool call','Agentic RAG grounded in your systems of record','Continuous evaluation so quality holds at scale'] },
-      { type:'closing', kicker:'Your turn',
-        title:'Architecture is **the** differentiator in production AI.',
-        body:'What design patterns have worked well for your AI systems?',
-        footLabel:'Follow Newtuple for more' }
-    ] }; },
-    frames(d, theme){ const t=d.slides.length; return d.slides.map((s,i)=>({
-      id:'s'+i, label:`${i+1}`, w:1080, h:1080, build:()=>buildCarouselSlide(s, theme, i, t) })); },
+    name:'LinkedIn Carousel', sub:'approved deck · editable', icon:'layers', themes:['light'], deckKey:'carousel',
+    defaults(){ return deckDefaults('fable', 'carousel'); },
+    frames(d){ return deckFrames(d); },
     file:'newtuple-carousel'
   },
   post: {
@@ -535,8 +571,9 @@ const KINDS = {
     file:'newtuple-onepager'
   },
   proposal: {
-    name:'Proposal', sub:'A4 · multi-page document', icon:'pages', themes:['light'],
-    defaults(){ return { pages:[
+    name:'Proposal', sub:'approved deck · editable', icon:'pages', themes:['light'], deckKey:'proposal',
+    defaults(){ return deckDefaults('pension', 'proposal'); },
+    _oldDefaults(){ return { pages:[
       { type:'cover', kicker:'Proposal', title:'Pension Contribution Processing **Automation**',
         subtitle:'Microsoft Power Automate + an AI agent & validation layer — a practical automation layer that cuts manual load across employer file intake, validation, historical comparison and PAS posting, without rebuilding the existing portal.',
         meta:'Prepared for Reflections Global · By Ratish Nair, CBO · 05 June 2026' },
@@ -625,8 +662,7 @@ const KINDS = {
         body:'On signature, Newtuple schedules a discovery kickoff within 5 business days, shares the delivery team and weekly cadence, and confirms access across M365, Power Automate, cloud storage and the PAS API. Finalized once client legal name, signatory, selected option and quote validity are confirmed.',
         meta:'For Newtuple Technologies — Dhiraj Nambiar, Founder', ctaUrl:'newtuple.com' }
     ] }; },
-    frames(d){ const t=d.pages.length; return d.pages.map((p,i)=>({
-      id:'p'+i, label:`${i+1}`, w:794, h:1123, build:()=>buildProposalPage(p, i, t) })); },
+    frames(d){ return deckFrames(d); },
     file:'newtuple-proposal'
   },
   imported: {
@@ -656,7 +692,12 @@ function loadPersisted(){
     const raw = localStorage.getItem(LS_KEY); if(!raw) return;
     const s = JSON.parse(raw);
     for(const k in KINDS){
-      if(s.data && s.data[k]) state.data[k] = s.data[k];
+      if(s.data && s.data[k]){
+        // deck kinds must hold deck-shaped data (slides[].shapes); ignore stale old-format saves
+        const ok = !isDeckKind(k) || (s.data[k] && Array.isArray(s.data[k].slides) &&
+          (!s.data[k].slides.length || Array.isArray(s.data[k].slides[0].shapes)));
+        if(ok) state.data[k] = s.data[k];
+      }
       if(s.overrides && s.overrides[k]) state.overrides[k] = s.overrides[k];
       if(s.markup && s.markup[k]) state.markup[k] = s.markup[k];
       if(s.decor && s.decor[k]) state.decor[k] = s.decor[k];
@@ -723,7 +764,7 @@ function renderPreview(){
   $('#frame-dims').textContent = `${fr.w} × ${fr.h}`;
   applyOverrides(el);
   appendDecor(el, state.kind, state.active, true);
-  if(state.kind==='imported') requestAnimationFrame(()=>fitImported(el));
+  if(isDeckKind(state.kind)) requestAnimationFrame(()=>fitImported(el));
   if(state.safeArea) el.appendChild(safeAreaOverlay(fr));
   editorAttach(el);
   renderMarkup(el);
@@ -757,10 +798,24 @@ function iconBtn(glyph, title, onclick, disabled){
   return h('button',{class:'icon-btn', title, disabled:disabled?'':null, onClick:onclick}, glyph);
 }
 
+function renderDeckBody(host, d){
+  host.appendChild(h('div',{class:'rail-hint', style:{lineHeight:'1.6'}},
+    'Click any element to select it — drag to move, corner to resize, toolbar to recolor / restyle, double-click text to edit. Arrow keys nudge · ⌘D duplicate · ⌫ delete.'));
+  host.appendChild(h('div',{class:'rail-section-title nt-label', style:{marginTop:'8px'}}, 'Add to this slide'));
+  host.appendChild(h('div',{style:{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px'}},
+    [ h('button',{class:'add-slide-btn', onClick:()=>addShape('text')}, '+ Text box'),
+      h('button',{class:'add-slide-btn', onClick:()=>addShape('rect')}, '+ Rectangle') ]));
+  host.appendChild(h('div',{class:'rail-section-title nt-label', style:{marginTop:'12px'}}, 'Slides'));
+  host.appendChild(h('div',{style:{display:'flex', gap:'8px', flexWrap:'wrap'}},
+    [ h('button',{class:'add-slide-btn', onClick:()=>{ pushUndo(); d.slides.splice(state.active+1,0, JSON.parse(JSON.stringify(d.slides[state.active]))); state.active++; editorDeselect(); renderAll(); }}, '⧉ Duplicate slide'),
+      h('button',{class:'add-slide-btn', onClick:()=>{ if(d.slides.length<=1) return; pushUndo(); d.slides.splice(state.active,1); if(state.active>=d.slides.length) state.active=d.slides.length-1; editorDeselect(); renderAll(); }}, '✕ Delete slide'),
+      h('button',{class:'add-slide-btn', onClick:()=>{ pushUndo(); d.slides.splice(state.active+1,0,{bg:'#FFFFFF', shapes:[]}); state.active++; editorDeselect(); renderAll(); }}, '+ Blank slide') ]));
+}
 function renderForm(){
   const host = $('#form-host'); host.innerHTML='';
   const d = state.data[state.kind];
 
+  if(isDeckKind(state.kind)){ renderDeckBody(host, d); return; }
   if(state.kind==='carousel'){
     d.slides.forEach((s,i)=>{
       const card = h('div',{class:'slide-card'});
@@ -889,7 +944,7 @@ function renderForm(){
       '+ Add page'));
   }
   else if(state.kind==='imported'){
-    const d = state.data.imported;
+    const d = state.data[state.kind];
     host.appendChild(h('div',{class:'rail-hint', style:{lineHeight:'1.6'}},
       'Click any element to select it — drag to move, corner to resize, toolbar to recolor / restyle, double-click text to edit. Arrow keys nudge · ⌘D duplicate · ⌫ delete.'));
     host.appendChild(h('div',{class:'rail-section-title nt-label', style:{marginTop:'8px'}}, 'Add to this slide'));
@@ -920,12 +975,12 @@ function renderAll(){ renderKindList(); renderTheme(); renderElementsPanel(); re
    EXPORT
    ============================================================ */
 const EXPORTS = {
-  carousel:['png','pdf','pptx','html','docx'],
+  carousel:['pptx','pdf','png','html'],
   post:['png','pdf','html'],
   banner:['png','pdf','html'],
   onepager:['pdf','png','docx','html'],
-  proposal:['pdf','pptx','docx','png','html'],
-  imported:['pdf','pptx','png','html']
+  proposal:['pptx','pdf','png','html'],
+  imported:['pptx','pdf','png','html']
 };
 const EXP_LABEL = { png:'PNG', pdf:'PDF', pptx:'PPTX', docx:'DOCX', html:'HTML' };
 
@@ -1014,6 +1069,7 @@ const EXPORTERS = {
     pdf.save(fileBase()+'.pdf');
   },
   async pptx(){
+    if(isDeckKind(state.kind)) return pptxNative();        // real, editable text boxes
     status('Rendering…');
     const caps = await captureFrames(2);
     const pptx = new PptxGenJS();
@@ -1284,7 +1340,7 @@ function editorAttach(frameEl){
 function onFramePointerDown(e){
   if(_editing) return;
   if(state.markupOn){ addPinAt(e); return; }
-  if(state.kind==='imported'){
+  if(isDeckKind(state.kind)){
     const sEl = e.target.closest('[data-shape]');
     if(!sEl){ editorDeselect(); return; }
     if(sEl !== _selEl) selectShape(sEl);
@@ -1515,7 +1571,7 @@ function beginGroupDrag(e){
    Every shape (text / rect / image) is selectable, movable, resizable,
    recolorable, duplicable, re-orderable and deletable. New shapes can be added.
    ============================================================ */
-function shapeObj(){ if(!_selShape) return null; const s=state.data.imported.slides[_selShape.i]; return s && s.shapes[_selShape.k]; }
+function shapeObj(){ if(!_selShape) return null; const s=state.data[state.kind].slides[_selShape.i]; return s && s.shapes[_selShape.k]; }
 function smut(fn){ pushUndo(); fn(); persist(); renderPreview(); }
 function buildShapeToolbar(){
   const seg=(c,id)=>h('div',{class:'tb-seg', id:id||null}, c);
@@ -1526,9 +1582,18 @@ function buildShapeToolbar(){
           btn('B','Bold',()=>shapeBold()), btn('Edit','Edit text',()=>{ if(_selEl) enterEdit(_selEl); }) ], 'sb-text'),
     h('div',{class:'tb-seg tb-swatches'}, [['Cobalt',C.cobalt],['Cyan',C.cyan],['Ink',C.gray900],['Muted',C.gray500],['White',C.white]].map(([n,hex])=>
       h('button',{class:'tb-swatch',title:'Colour '+n,style:{background:hex,border:hex===C.white?'1px solid '+C.gray300:'none'},onclick:()=>shapeColor(hex)}))),
+    seg([ btn('⤺','Rotate left',()=>shapeRotate(-15)), btn('⤻','Rotate right',()=>shapeRotate(15)) ]),
+    seg([ btn('Replace','Replace image',()=>shapeReplaceImage()) ], 'sb-img'),
     seg([ btn('⤒','Bring to front',()=>shapeLayer(1)), btn('⤓','Send to back',()=>shapeLayer(-1)) ]),
     seg([ btn('⧉','Duplicate (⌘D)',()=>shapeDup()), btn('⌫','Delete (⌦)',()=>shapeDel(),'tb-reset') ])
   ]);
+}
+function shapeRotate(d){ const sh=shapeObj(); if(!sh) return; smut(()=>{ sh.rot=(((sh.rot||0)+d)%360+360)%360; }); }
+function shapeReplaceImage(){ const sh=shapeObj(); if(!sh||sh.t!=='img') return;
+  const inp=h('input',{type:'file', accept:'image/*', style:{display:'none'}});
+  inp.addEventListener('change', e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
+    rd.onload=()=>{ pushUndo(); sh.src=rd.result; persist(); renderPreview(); toast('Image replaced'); }; rd.readAsDataURL(f); });
+  document.body.appendChild(inp); inp.click(); setTimeout(()=>inp.remove(), 1000);
 }
 function selectShape(el){
   if(_selEl) _selEl.classList.remove('nt-selected');
@@ -1537,6 +1602,7 @@ function selectShape(el){
   _selEl = el; el.classList.add('nt-selected');
   const sh = shapeObj();
   _sbar.querySelector('#sb-text').style.display = (sh && sh.t==='text') ? 'flex' : 'none';
+  _sbar.querySelector('#sb-img').style.display = (sh && sh.t==='img') ? 'flex' : 'none';
   _box.style.display='block'; _bar.style.display='none'; _dbar.style.display='none'; _mbar.style.display='none';
   _sbar.style.display='flex'; positionChrome();
 }
@@ -1559,13 +1625,13 @@ function shapeFont(d){ const sh=shapeObj(); if(!sh||sh.t!=='text') return; smut(
   sh.tx.paras.forEach(p=>p.runs.forEach(r=>{ if(r.fs) r.fs=Math.max(6, Math.round(r.fs+d)); else if(!r.br) r.fs=Math.max(6,24+d); })); }); }
 function shapeBold(){ const sh=shapeObj(); if(!sh||sh.t!=='text') return; smut(()=>{
   const allBold = sh.tx.paras.every(p=>p.runs.every(r=>r.br||r.b)); sh.tx.paras.forEach(p=>p.runs.forEach(r=>{ if(!r.br){ if(allBold) delete r.b; else r.b=1; } })); }); }
-function shapeLayer(dir){ const sh=shapeObj(); if(!sh) return; const arr=state.data.imported.slides[_selShape.i].shapes;
+function shapeLayer(dir){ const sh=shapeObj(); if(!sh) return; const arr=state.data[state.kind].slides[_selShape.i].shapes;
   pushUndo(); arr.splice(_selShape.k,1); const ni = dir>0 ? arr.length : 0; arr.splice(ni,0,sh); _selShape.k=ni; persist(); renderPreview(); }
-function shapeDup(){ const sh=shapeObj(); if(!sh) return; const arr=state.data.imported.slides[_selShape.i].shapes;
+function shapeDup(){ const sh=shapeObj(); if(!sh) return; const arr=state.data[state.kind].slides[_selShape.i].shapes;
   pushUndo(); const c=JSON.parse(JSON.stringify(sh)); c.x+=16; c.y+=16; arr.push(c); _selShape.k=arr.length-1; persist(); renderPreview(); }
-function shapeDel(){ if(!_selShape) return; const arr=state.data.imported.slides[_selShape.i].shapes;
+function shapeDel(){ if(!_selShape) return; const arr=state.data[state.kind].slides[_selShape.i].shapes;
   pushUndo(); arr.splice(_selShape.k,1); editorDeselect(); persist(); renderPreview(); }
-function alignShapeToSlide(where){ const sh=shapeObj(); if(!sh) return; const d=state.data.imported, m=0.05; smut(()=>{
+function alignShapeToSlide(where){ const sh=shapeObj(); if(!sh) return; const d=state.data[state.kind], m=0.05; smut(()=>{
   if(where==='left') sh.x=Math.round(d.w*m);
   if(where==='hcenter') sh.x=Math.round((d.w-sh.w)/2);
   if(where==='right') sh.x=Math.round(d.w-d.w*m-sh.w);
@@ -1573,7 +1639,7 @@ function alignShapeToSlide(where){ const sh=shapeObj(); if(!sh) return; const d=
   if(where==='vcenter') sh.y=Math.round((d.h-sh.h)/2);
   if(where==='bottom') sh.y=Math.round(d.h-d.h*m-sh.h); }); }
 function addShape(kind){
-  const d=state.data.imported, sl=d.slides[state.active]; if(!sl) return;
+  const d=state.data[state.kind], sl=d.slides[state.active]; if(!sl) return;
   const x=Math.round(d.w*0.12), y=Math.round(d.h*0.18);
   const sh = kind==='text'
     ? { t:'text', x, y, w:Math.round(d.w*0.5), h:90, tx:{ anchor:'t', pads:[4,4,4,4], fscale:1,
@@ -1781,18 +1847,6 @@ function libPersist(){ try { localStorage.setItem(LIB_KEY, JSON.stringify(librar
 
 /* Curated starter collection — real newtuple.com copy across all 5 types */
 const STARTERS = [
-  { name:'Agentic design patterns', kind:'carousel', theme:'dark', make:()=>KINDS.carousel.defaults() },
-  { name:'Dialogtuple — feature carousel', kind:'carousel', theme:'dark', make:()=>({ slides:[
-      { type:'title', kicker:'Dialogtuple', title:'**100+ LLMs.** Native agents. One platform.',
-        body:'A multi-agent platform with prompt versioning, tracing and a built-in eval framework.' },
-      { type:'pattern', number:'01', kicker:'Integrate', title:'**100+ LLMs**, one integration layer',
-        body:'Swap models without rewrites. One-click MCP and tool integration.' },
-      { type:'pattern', number:'02', kicker:'Ship', title:'One click to **Slack, Teams, Email or API**',
-        body:'Take an agent from prototype to where your users already are.' },
-      { type:'list', kicker:'Built in', title:'Production from day one',
-        items:['Prompt versioning','Built-in tracing','Eval framework integration','SaaS, your cloud, or air-gapped'] },
-      { type:'closing', kicker:'See it live', title:'Native agents on the **OpenClaw** architecture.',
-        body:'Request a demo and ship your first agent.', footLabel:'newtuple.com/dialogtuple' } ] }) },
   { name:'Five questions (quote)', kind:'post', theme:'light', make:()=>({ variant:'quote',
       title:'We do not launch an agent until it can answer **five questions**.',
       attribution:'— Newtuple · On agent readiness' }) },
@@ -1815,8 +1869,7 @@ const STARTERS = [
   { name:'Every engineer codes with AI (banner)', kind:'banner', theme:'light', make:()=>({ kicker:'The agentic enterprise',
       title:'Every engineer codes with **AI agents**. Every PM is **AI-augmented**.',
       subtitle:'Production-grade automation that runs all day, at scale, with governance.' }) },
-  { name:'Capability one-pager', kind:'onepager', theme:'light', make:()=>KINDS.onepager.defaults() },
-  { name:'Pension automation proposal', kind:'proposal', theme:'light', make:()=>KINDS.proposal.defaults() }
+  { name:'Capability one-pager', kind:'onepager', theme:'light', make:()=>KINDS.onepager.defaults() }
 ];
 /* append custom starters from starters.js (plain {name,kind,theme,data}) */
 (window.NT_STARTERS||[]).forEach(s=>{ if(s && s.kind && KINDS[s.kind] && s.data){
@@ -1826,6 +1879,12 @@ const STARTERS = [
 /* ---------- content extract / rebuild (repurpose engine) ---------- */
 function extractContent(kind, d){
   const n = { kicker:'', title:'', sub:'', bullets:[], metrics:[] };
+  if(isDeckKind(kind)){
+    const texts = [];
+    (d.slides||[]).forEach(s=> (s.shapes||[]).forEach(sh=>{ if(sh.t==='text' && sh.tx && sh.tx.orig && sh.tx.orig.trim()) texts.push(sh.tx.orig.trim()); }));
+    n.title = texts[0]||''; n.sub = texts[1]||''; n.bullets = texts.slice(2, 12);
+    return n;
+  }
   if(kind==='carousel'){
     const s0 = d.slides[0]||{}; n.kicker=s0.kicker||''; n.title=s0.title||''; n.sub=s0.body||'';
     d.slides.forEach(s=>{ if(s.items) n.bullets.push(...s.items); else if(s.type==='pattern' && s.title) n.bullets.push(s.title); });
@@ -1928,7 +1987,7 @@ function thumbEl(kind, data, theme, overrides){
   return box;
 }
 function repurposeSelect(srcKind, srcData){
-  const others = Object.keys(KINDS).filter(k=>k!==srcKind);
+  const others = Object.keys(KINDS).filter(k=>k!==srcKind && !isDeckKind(k));
   return h('select',{class:'lib-repurpose', onchange:e=>{ const t=e.target.value; e.target.selectedIndex=0; if(t) openRepurposed(srcKind, srcData, t); }},
     [ h('option',{value:''}, 'Use as…'), ...others.map(k=>h('option',{value:k}, KINDS[k].name)) ]);
 }

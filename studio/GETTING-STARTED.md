@@ -37,12 +37,18 @@ Three panes:
 
 | Asset | What it's for |
 |---|---|
-| **LinkedIn Carousel** | Multi-slide 1080×1080 square deck |
+| **LinkedIn Carousel** | The approved carousel deck — fully editable (shape-level) |
 | **Social Post** | Single 1080×1080 — quote, stat, or announcement |
 | **Banner** | 1200×630 for LinkedIn / link previews (OG) |
 | **One-Pager** | A4 capability sheet |
-| **Proposal** | A4 multi-page document (cover, sections, content, metrics, CTA) |
-| **Imported deck** | Your approved PowerPoint, converted to a fully editable canvas |
+| **Proposal** | The approved proposal deck — fully editable (shape-level) |
+| **Imported deck** | Any approved PowerPoint, converted to a fully editable canvas |
+
+> **LinkedIn Carousel** and **Proposal** now load the **approved decks** themselves
+> (the real Fable 5 carousel and the Reflections Global pension proposal),
+> fully editable shape-by-shape — not generic templates. They export to a
+> **native, editable PPTX** (real text boxes you can edit in PowerPoint), plus
+> PDF / PNG / HTML. Select any shape to rotate (⤺ ⤻); select an image to **Replace** it.
 
 Switch **theme** (Light / Agentic dark) on the left. Some assets are light-only
 (One-Pager, Proposal) — the toggle disables itself accordingly.
