@@ -42,9 +42,19 @@ Three panes:
 | **Banner** | 1200×630 for LinkedIn / link previews (OG) |
 | **One-Pager** | A4 capability sheet |
 | **Proposal** | A4 multi-page document (cover, sections, content, metrics, CTA) |
+| **Imported deck** | Your approved PowerPoint, converted to a fully editable canvas |
 
 Switch **theme** (Light / Agentic dark) on the left. Some assets are light-only
 (One-Pager, Proposal) — the toggle disables itself accordingly.
+
+### Imported decks — edit a real PPTX freely
+Drop an approved deck in `uploads/approved/`, run `python tools/build_imported.py`,
+and it appears under **Imported deck** and **Library → Imported decks (editable)**.
+**Every element is editable**: click any text / box / image to select → drag to
+move, corner-handle to resize, toolbar to recolor + restyle (and align to the
+page), double-click text to edit. **Add** a Text box or Rectangle, **⌘D** to
+duplicate, **⌫** to delete, front/back to reorder. Manage slides (duplicate /
+delete / add blank) from the panel. Export to PDF / PPTX / PNG / HTML.
 
 ---
 

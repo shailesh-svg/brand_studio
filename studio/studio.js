@@ -440,23 +440,26 @@ function buildImportedSlide(deck, idx){
     if(sh.fill){ if(String(sh.fill).indexOf('linear')===0) st.background = sh.fill; else st.backgroundColor = sh.fill; }
     if(sh.r) st.borderRadius = (sh.r>=9999 ? '50%' : sh.r+'px');
     if(sh.bd) st.border = sh.bd[0]+'px solid '+sh.bd[1];
-    if(sh.t==='img'){ st.objectFit='contain'; frame.appendChild(h('img',{src:sh.src, style:st})); return; }
-    if(sh.t==='text' && sh.tx){
+    let node;
+    if(sh.t==='img'){ st.objectFit='contain'; node = h('img',{src:sh.src, style:st}); }
+    else if(sh.t==='text' && sh.tx){
       const tx = sh.tx;
       Object.assign(st, { display:'flex', flexDirection:'column',
         justifyContent:({t:'flex-start',ctr:'center',b:'flex-end'}[tx.anchor]||'flex-start'),
         padding: tx.pads[0]+'px '+tx.pads[1]+'px '+tx.pads[2]+'px '+tx.pads[3]+'px', overflow:'visible' });
-      const div = h('div',{class:'nt-imp-tx', style:st});
-      div.setAttribute('data-bind', 'slides.'+idx+'.shapes.'+k+'.tx.orig');
-      div.setAttribute('data-defstyle', '{}');
+      node = h('div',{class:'nt-imp-tx', style:st});
+      node.setAttribute('data-bind', 'slides.'+idx+'.shapes.'+k+'.tx.orig');
+      node.setAttribute('data-defstyle', '{}');
       const joined = (tx.paras||[]).reduce((a,p)=> a + (p.runs||[]).reduce((b,r)=> b+(r.s||''), ''), '');
-      if(tx.orig === joined){ (tx.paras||[]).forEach(p=> div.appendChild(impPara(p, tx.fscale))); }
+      if(tx.orig === joined){ (tx.paras||[]).forEach(p=> node.appendChild(impPara(p, tx.fscale))); }
       else { const r0 = ((tx.paras[0]||{}).runs||[])[0] || {};
         const pd = h('div',{style:impParaStyle(tx.paras[0]||{a:'left'})});
-        pd.appendChild(h('span',{style:impRunStyle(r0, tx.fscale)}, tx.orig)); div.appendChild(pd); }
-      frame.appendChild(div); return;
+        pd.appendChild(h('span',{style:impRunStyle(r0, tx.fscale)}, tx.orig)); node.appendChild(pd); }
     }
-    frame.appendChild(h('div',{style:st}));
+    else { node = h('div',{style:st}); }
+    node.setAttribute('data-shape', idx+'.'+k);
+    node.classList.add('nt-shape');
+    frame.appendChild(node);
   });
   return frame;
 }
@@ -886,8 +889,18 @@ function renderForm(){
       '+ Add page'));
   }
   else if(state.kind==='imported'){
+    const d = state.data.imported;
     host.appendChild(h('div',{class:'rail-hint', style:{lineHeight:'1.6'}},
-      'Imported from PowerPoint. Click any text on the canvas to edit it, drag to move, recolor with the brand toolbar, and use the page tabs above to switch slides. Open a different deck from the Library → Imported decks.'));
+      'Click any element to select it — drag to move, corner to resize, toolbar to recolor / restyle, double-click text to edit. Arrow keys nudge · ⌘D duplicate · ⌫ delete.'));
+    host.appendChild(h('div',{class:'rail-section-title nt-label', style:{marginTop:'8px'}}, 'Add to this slide'));
+    host.appendChild(h('div',{style:{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px'}},
+      [ h('button',{class:'add-slide-btn', onClick:()=>addShape('text')}, '+ Text box'),
+        h('button',{class:'add-slide-btn', onClick:()=>addShape('rect')}, '+ Rectangle') ]));
+    host.appendChild(h('div',{class:'rail-section-title nt-label', style:{marginTop:'12px'}}, 'Slides'));
+    host.appendChild(h('div',{style:{display:'flex', gap:'8px', flexWrap:'wrap'}},
+      [ h('button',{class:'add-slide-btn', onClick:()=>{ pushUndo(); d.slides.splice(state.active+1,0, JSON.parse(JSON.stringify(d.slides[state.active]))); state.active++; editorDeselect(); renderAll(); }}, '⧉ Duplicate slide'),
+        h('button',{class:'add-slide-btn', onClick:()=>{ if(d.slides.length<=1) return; pushUndo(); d.slides.splice(state.active,1); if(state.active>=d.slides.length) state.active=d.slides.length-1; editorDeselect(); renderAll(); }}, '✕ Delete slide'),
+        h('button',{class:'add-slide-btn', onClick:()=>{ pushUndo(); d.slides.splice(state.active+1,0,{bg:'#FFFFFF', shapes:[]}); state.active++; editorDeselect(); renderAll(); }}, '+ Blank slide') ]));
   }
 }
 function seedProposalDefaults(p, v){
@@ -1102,6 +1115,7 @@ const SWATCHES = [
 ];
 let _sel = null, _selEl = null, _box = null, _bar = null, _gx = null, _gy = null, _editing = false;
 let _selKind = 'text', _selDecorId = null, _dbar = null;
+let _selShape = null, _sbar = null;   // imported-deck freeform shape editing
 
 const ov = () => (state.overrides[state.kind] = state.overrides[state.kind] || {});
 const bindOf = el => el.getAttribute('data-bind');
@@ -1130,7 +1144,8 @@ function editorInitChrome(){
   _bar = buildToolbar();
   _dbar = buildDecorToolbar();
   _mbar = buildMultiToolbar();
-  document.body.append(_gx, _gy, _box, _bar, _dbar, _mbar);
+  _sbar = buildShapeToolbar();
+  document.body.append(_gx, _gy, _box, _bar, _dbar, _mbar, _sbar);
 }
 function buildDecorToolbar(){
   const seg = (children)=> h('div',{class:'tb-seg'}, children);
@@ -1193,14 +1208,20 @@ function selectDecor(div){
 }
 function editorDeselect(){
   if(_selEl) _selEl.classList.remove('nt-selected');
-  _sel = null; _selEl = null; _selKind = 'text'; _selDecorId = null;
+  _sel = null; _selEl = null; _selKind = 'text'; _selDecorId = null; _selShape = null;
   clearMulti();
   if(_box) _box.style.display = 'none';
   if(_bar) _bar.style.display = 'none';
   if(_dbar) _dbar.style.display = 'none';
+  if(_sbar) _sbar.style.display = 'none';
 }
 function editorReselect(){
   if(!_frameEl) return;
+  if(_selKind==='shape' && _selShape){
+    const sv = _frameEl.querySelector('[data-shape="'+_selShape.i+'.'+_selShape.k+'"]');
+    if(sv) selectShape(sv); else editorDeselect();
+    return;
+  }
   if(_selKind==='multi' && _multi.length>1){
     _frameEl.querySelectorAll('.nt-decor').forEach(dv=> dv.classList.toggle('nt-multi', _multi.includes(dv.getAttribute('data-decor'))));
     _mbar.style.display='flex'; positionMulti(); return;
@@ -1218,7 +1239,7 @@ function editorReselect(){
 }
 function positionChrome(){
   if(!_selEl || !_box || _box.style.display==='none') return;
-  const bar = _selKind==='decor' ? _dbar : _bar;
+  const bar = _selKind==='shape' ? _sbar : (_selKind==='decor' ? _dbar : _bar);
   const r = _selEl.getBoundingClientRect();
   Object.assign(_box.style, { left:r.left+'px', top:r.top+'px', width:r.width+'px', height:r.height+'px' });
   const bw = bar.offsetWidth || 320;
@@ -1263,6 +1284,12 @@ function editorAttach(frameEl){
 function onFramePointerDown(e){
   if(_editing) return;
   if(state.markupOn){ addPinAt(e); return; }
+  if(state.kind==='imported'){
+    const sEl = e.target.closest('[data-shape]');
+    if(!sEl){ editorDeselect(); return; }
+    if(sEl !== _selEl) selectShape(sEl);
+    beginShapeDrag(e, sEl); return;
+  }
   const dc = e.target.closest('.nt-decor');
   if(dc){
     const id = dc.getAttribute('data-decor');
@@ -1319,6 +1346,15 @@ function beginResize(e){
     const move = (ev)=>{ if(!pushed){ pushUndo(); pushed=true; }
       d.w = Math.max(40, Math.round(w0 + (ev.clientX-sx)/_scale)); _selEl.style.width = d.w+'px'; positionChrome(); };
     const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); persist(); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); return;
+  }
+  if(_selKind==='shape'){
+    const sh = shapeObj(); if(!sh) return;
+    const sx=e.clientX, sy=e.clientY, w0=sh.w, h0=sh.h;
+    const move=(ev)=>{ if(!pushed){ pushUndo(); pushed=true; }
+      sh.w=Math.max(16, Math.round(w0+(ev.clientX-sx)/_scale)); sh.h=Math.max(12, Math.round(h0+(ev.clientY-sy)/_scale));
+      _selEl.style.width=sh.w+'px'; _selEl.style.height=sh.h+'px'; positionChrome(); };
+    const up=()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); persist(); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); return;
   }
   const el = _selEl, start = e.clientY, s0 = curSize(el);
@@ -1402,6 +1438,8 @@ function alignSelected(where){
   }
 }
 function nudgeSel(dx, dy){
+  if(_selKind==='shape'){ const sh=shapeObj(); if(!sh) return; pushUndo(); sh.x+=dx; sh.y+=dy;
+    if(_selEl){ _selEl.style.left=sh.x+'px'; _selEl.style.top=sh.y+'px'; } positionChrome(); persist(); return; }
   if(_selKind==='multi' && _multi.length){ pushUndo();
     multiList().forEach(d=>{ d.x=(d.x||0)+dx; d.y=(d.y||0)+dy;
       const dv=_frameEl.querySelector(`.nt-decor[data-decor="${d.id}"]`); if(dv){ dv.style.left=d.x+'px'; dv.style.top=d.y+'px'; } });
@@ -1470,6 +1508,79 @@ function beginGroupDrag(e){
     positionMulti(); };
   const up=()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); if(moved) persist(); };
   window.addEventListener('pointermove',move); window.addEventListener('pointerup',up);
+}
+
+/* ============================================================
+   IMPORTED-DECK FREEFORM SHAPE EDITOR
+   Every shape (text / rect / image) is selectable, movable, resizable,
+   recolorable, duplicable, re-orderable and deletable. New shapes can be added.
+   ============================================================ */
+function shapeObj(){ if(!_selShape) return null; const s=state.data.imported.slides[_selShape.i]; return s && s.shapes[_selShape.k]; }
+function smut(fn){ pushUndo(); fn(); persist(); renderPreview(); }
+function buildShapeToolbar(){
+  const seg=(c,id)=>h('div',{class:'tb-seg', id:id||null}, c);
+  const btn=(t,title,fn,cls)=>h('button',{class:'tb-btn'+(cls?' '+cls:''),title,onclick:fn},t);
+  return h('div',{class:'nt-toolbar', style:{display:'none'}, onpointerdown:e=>e.stopPropagation()},[
+    alignSeg(alignShapeToSlide),
+    seg([ btn('A−','Smaller text',()=>shapeFont(-2)), btn('A+','Larger text',()=>shapeFont(2)),
+          btn('B','Bold',()=>shapeBold()), btn('Edit','Edit text',()=>{ if(_selEl) enterEdit(_selEl); }) ], 'sb-text'),
+    h('div',{class:'tb-seg tb-swatches'}, [['Cobalt',C.cobalt],['Cyan',C.cyan],['Ink',C.gray900],['Muted',C.gray500],['White',C.white]].map(([n,hex])=>
+      h('button',{class:'tb-swatch',title:'Colour '+n,style:{background:hex,border:hex===C.white?'1px solid '+C.gray300:'none'},onclick:()=>shapeColor(hex)}))),
+    seg([ btn('⤒','Bring to front',()=>shapeLayer(1)), btn('⤓','Send to back',()=>shapeLayer(-1)) ]),
+    seg([ btn('⧉','Duplicate (⌘D)',()=>shapeDup()), btn('⌫','Delete (⌦)',()=>shapeDel(),'tb-reset') ])
+  ]);
+}
+function selectShape(el){
+  if(_selEl) _selEl.classList.remove('nt-selected');
+  const ik = el.getAttribute('data-shape').split('.');
+  _selShape = { i:+ik[0], k:+ik[1] }; _selKind='shape'; _sel=null; _selDecorId=null;
+  _selEl = el; el.classList.add('nt-selected');
+  const sh = shapeObj();
+  _sbar.querySelector('#sb-text').style.display = (sh && sh.t==='text') ? 'flex' : 'none';
+  _box.style.display='block'; _bar.style.display='none'; _dbar.style.display='none'; _mbar.style.display='none';
+  _sbar.style.display='flex'; positionChrome();
+}
+function beginShapeDrag(e, el){
+  const sh = shapeObj(); if(!sh) return;
+  const sx=e.clientX, sy=e.clientY, x0=sh.x, y0=sh.y; let moved=false, pushed=false;
+  const move=(ev)=>{ const ddx=ev.clientX-sx, ddy=ev.clientY-sy;
+    if(!moved && Math.abs(ddx)+Math.abs(ddy)<3) return; moved=true; if(!pushed){ pushUndo(); pushed=true; }
+    sh.x=Math.round(x0+ddx/_scale); sh.y=Math.round(y0+ddy/_scale);
+    el.style.left=sh.x+'px'; el.style.top=sh.y+'px';
+    const {ax,ay}=snapDrag(el); if(ax||ay){ sh.x+=Math.round(ax/_scale); sh.y+=Math.round(ay/_scale); el.style.left=sh.x+'px'; el.style.top=sh.y+'px'; }
+    positionChrome(); };
+  const up=()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); hideGuide(_gx); hideGuide(_gy); if(moved) persist(); };
+  window.addEventListener('pointermove',move); window.addEventListener('pointerup',up);
+}
+function shapeColor(hex){ const sh=shapeObj(); if(!sh) return; smut(()=>{
+  if(sh.t==='text' && sh.tx){ sh.tx.paras.forEach(p=>p.runs.forEach(r=>{ if(!r.br) r.col=hex; })); }
+  else sh.fill=hex; }); }
+function shapeFont(d){ const sh=shapeObj(); if(!sh||sh.t!=='text') return; smut(()=>{
+  sh.tx.paras.forEach(p=>p.runs.forEach(r=>{ if(r.fs) r.fs=Math.max(6, Math.round(r.fs+d)); else if(!r.br) r.fs=Math.max(6,24+d); })); }); }
+function shapeBold(){ const sh=shapeObj(); if(!sh||sh.t!=='text') return; smut(()=>{
+  const allBold = sh.tx.paras.every(p=>p.runs.every(r=>r.br||r.b)); sh.tx.paras.forEach(p=>p.runs.forEach(r=>{ if(!r.br){ if(allBold) delete r.b; else r.b=1; } })); }); }
+function shapeLayer(dir){ const sh=shapeObj(); if(!sh) return; const arr=state.data.imported.slides[_selShape.i].shapes;
+  pushUndo(); arr.splice(_selShape.k,1); const ni = dir>0 ? arr.length : 0; arr.splice(ni,0,sh); _selShape.k=ni; persist(); renderPreview(); }
+function shapeDup(){ const sh=shapeObj(); if(!sh) return; const arr=state.data.imported.slides[_selShape.i].shapes;
+  pushUndo(); const c=JSON.parse(JSON.stringify(sh)); c.x+=16; c.y+=16; arr.push(c); _selShape.k=arr.length-1; persist(); renderPreview(); }
+function shapeDel(){ if(!_selShape) return; const arr=state.data.imported.slides[_selShape.i].shapes;
+  pushUndo(); arr.splice(_selShape.k,1); editorDeselect(); persist(); renderPreview(); }
+function alignShapeToSlide(where){ const sh=shapeObj(); if(!sh) return; const d=state.data.imported, m=0.05; smut(()=>{
+  if(where==='left') sh.x=Math.round(d.w*m);
+  if(where==='hcenter') sh.x=Math.round((d.w-sh.w)/2);
+  if(where==='right') sh.x=Math.round(d.w-d.w*m-sh.w);
+  if(where==='top') sh.y=Math.round(d.h*m);
+  if(where==='vcenter') sh.y=Math.round((d.h-sh.h)/2);
+  if(where==='bottom') sh.y=Math.round(d.h-d.h*m-sh.h); }); }
+function addShape(kind){
+  const d=state.data.imported, sl=d.slides[state.active]; if(!sl) return;
+  const x=Math.round(d.w*0.12), y=Math.round(d.h*0.18);
+  const sh = kind==='text'
+    ? { t:'text', x, y, w:Math.round(d.w*0.5), h:90, tx:{ anchor:'t', pads:[4,4,4,4], fscale:1,
+        paras:[{a:'left', lh:1.25, mt:0, mb:0, bu:null, runs:[{s:'New text', fs:28, col:C.gray900}]}], orig:'New text' } }
+    : { t:'rect', x, y, w:Math.round(d.w*0.4), h:Math.round(d.h*0.12), fill:C.gray50, bd:[1, C.gray200], r:10 };
+  pushUndo(); sl.shapes.push(sh); _selShape={ i:state.active, k:sl.shapes.length-1 }; _selKind='shape'; persist(); renderPreview();
+  toast('Added '+(kind==='text'?'text box':'rectangle'));
 }
 
 /* ---------- safe-area / margin overlay ---------- */
@@ -2019,8 +2130,8 @@ function boot(){
     if(meta && e.key.toLowerCase()==='z'){ if(inField) return; e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if(inField) return;
     if(e.key==='Escape'){ editorDeselect(); return; }
-    if(meta && e.key.toLowerCase()==='d'){ if(_selKind==='multi'){ e.preventDefault(); dupMulti(); } else if(_selKind==='decor' && _selEl){ e.preventDefault(); duplicateDecor(); } return; }
-    if(e.key==='Delete' || e.key==='Backspace'){ if(_selKind==='multi'){ e.preventDefault(); delMulti(); } else if(_selKind==='decor' && _selEl){ e.preventDefault(); deleteDecor(); } return; }
+    if(meta && e.key.toLowerCase()==='d'){ if(_selKind==='multi'){ e.preventDefault(); dupMulti(); } else if(_selKind==='shape'){ e.preventDefault(); shapeDup(); } else if(_selKind==='decor' && _selEl){ e.preventDefault(); duplicateDecor(); } return; }
+    if(e.key==='Delete' || e.key==='Backspace'){ if(_selKind==='multi'){ e.preventDefault(); delMulti(); } else if(_selKind==='shape'){ e.preventDefault(); shapeDel(); } else if(_selKind==='decor' && _selEl){ e.preventDefault(); deleteDecor(); } return; }
     if((_selEl || _selKind==='multi') && e.key.indexOf('Arrow')===0){ e.preventDefault(); const s = e.shiftKey ? 10 : 1;
       if(e.key==='ArrowLeft') nudgeSel(-s,0); else if(e.key==='ArrowRight') nudgeSel(s,0);
       else if(e.key==='ArrowUp') nudgeSel(0,-s); else if(e.key==='ArrowDown') nudgeSel(0,s); }
