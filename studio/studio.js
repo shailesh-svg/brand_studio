@@ -1934,6 +1934,88 @@ function renderElementsPanel(){
 }
 
 /* ============================================================
+   AI DRAFT (optional, toggleable) — draft on-brand copy with OpenAI,
+   then fine-tune by hand. Token-optimised: cheap model by default, only
+   field keys + truncated current text sent, JSON response, this-slide scope.
+   ============================================================ */
+const AI_KEY_LS = 'nt-openai-key', AI_MODEL_LS = 'nt-openai-model';
+const aiGetKey   = () => { try { return localStorage.getItem(AI_KEY_LS) || ''; } catch(e){ return ''; } };
+const aiGetModel = () => { try { return localStorage.getItem(AI_MODEL_LS) || 'gpt-4o-mini'; } catch(e){ return 'gpt-4o-mini'; } };
+
+/* the editable text fields of the current asset (current slide for decks) */
+function aiFields(scope){
+  const kind = state.kind, d = state.data[kind], out = [];
+  if(isDeckKind(kind)){
+    const idxs = scope==='all' ? d.slides.map((_,i)=>i) : [state.active];
+    idxs.forEach(si=>{ (d.slides[si].shapes||[]).forEach((sh,k)=>{
+      if(sh.t==='text' && sh.tx && sh.tx.orig && sh.tx.orig.trim())
+        out.push({ key:'s'+si+'_'+k, cur:sh.tx.orig.trim(), max:Math.max(24, sh.tx.orig.length+24),
+          set:v=>{ d.slides[si].shapes[k].tx.orig = v; } }); }); });
+  } else if(kind==='post'){
+    ['kicker','title','body','attribution','metric','cta'].forEach(k=>{ if(d[k]!=null) out.push({key:k,cur:d[k],max:140,set:v=>d[k]=v}); });
+  } else if(kind==='banner'){
+    ['kicker','title','subtitle'].forEach(k=>{ if(d[k]!=null) out.push({key:k,cur:d[k],max:160,set:v=>d[k]=v}); });
+  } else if(kind==='onepager'){
+    ['eyebrow','title','intro','ctaText'].forEach(k=>{ if(d[k]!=null) out.push({key:k,cur:d[k],max:320,set:v=>d[k]=v}); });
+    (d.features||[]).forEach((f,i)=>{ out.push({key:'feat'+i+'_t',cur:f.title,max:60,set:v=>f.title=v}); out.push({key:'feat'+i+'_d',cur:f.desc,max:170,set:v=>f.desc=v}); });
+    (d.metrics||[]).forEach((m,i)=> out.push({key:'metric'+i+'_l',cur:m.label,max:60,set:v=>m.label=v}));
+  }
+  return out;
+}
+function aiApply(fields, obj){ let n=0; fields.forEach(f=>{ const v=obj[f.key]; if(v!=null && String(v).trim()){ f.set(String(v).trim()); n++; } }); return n; }
+
+const AI_SYSTEM = "You are Newtuple's brand copywriter. Voice: calm authority — a practitioner, not a vendor. Active voice; precise technical vocabulary (ReAct, multi-agent orchestration, observability, agentic RAG) used correctly; outcome-led and quantified; short declarative sentences. Sentence case for headings/body; UPPERCASE only for short kicker/eyebrow labels. Product names: Dialogtuple, Gaugetuple. NO emoji ever. Respect each field's character budget. Return ONLY a JSON object mapping each given field key to its new text — include only keys you are changing.";
+
+async function aiDraft(brief, scope, statusEl){
+  const key = aiGetKey(); if(!key){ statusEl.textContent = 'Add your OpenAI API key first.'; return; }
+  const fields = aiFields(scope); if(!fields.length){ statusEl.textContent = 'No editable text here to draft.'; return; }
+  const spec = fields.map(f=>`- ${f.key} (≤${f.max} chars; current: "${f.cur.slice(0,90)}")`).join('\n');
+  const user = `Brief: ${brief || '(improve and tighten the current copy, on-brand)'}\n\n`
+    + `Draft copy for these fields of a Newtuple ${KINDS[state.kind].name}. Keep the meaning where it makes sense, match the brief, stay on-brand.\nFields:\n${spec}`;
+  statusEl.textContent = 'Drafting…';
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key },
+      body: JSON.stringify({ model: aiGetModel(), temperature:0.7, max_tokens:1000,
+        response_format:{ type:'json_object' },
+        messages:[ {role:'system', content:AI_SYSTEM}, {role:'user', content:user} ] })
+    });
+    if(!res.ok){ const t=await res.text(); throw new Error('API '+res.status+' — '+t.slice(0,140)); }
+    const data = await res.json();
+    const obj = JSON.parse(data.choices[0].message.content);
+    pushUndo(); const n = aiApply(fields, obj); persist(); renderAll();
+    const u = data.usage||{}; statusEl.textContent = `Applied to ${n} field(s) · ${u.total_tokens||'?'} tokens (${aiGetModel()})`;
+    toast('AI draft applied — fine-tune on the canvas');
+  } catch(e){ statusEl.textContent = 'Failed: ' + (e.message||e); }
+}
+
+function aiOpen(){
+  const deck = isDeckKind(state.kind);
+  const keyInput = h('input',{type:'password', value:aiGetKey(), placeholder:'sk-…', oninput:e=>{ try{ localStorage.setItem(AI_KEY_LS, e.target.value.trim()); }catch(_){} }});
+  const modelSel = h('select',{onchange:e=>{ try{ localStorage.setItem(AI_MODEL_LS, e.target.value); }catch(_){} }},
+    [['gpt-4o-mini','gpt-4o-mini · cheapest'],['gpt-4o','gpt-4o · higher quality']].map(([v,t])=>h('option',{value:v, selected:v===aiGetModel()?'':null}, t)));
+  const scopeSel = h('select',{}, [['slide','This slide — fewer tokens'],['all','All slides — more tokens']].map(([v,t])=>h('option',{value:v}, t)));
+  const brief = h('textarea',{rows:3, placeholder:'e.g. Carousel on why agent architecture beats bigger models — 5 patterns, end with a question.'});
+  const status = h('div',{class:'ai-status'});
+  const ov = h('div',{class:'lib-lightbox', onclick:e=>{ if(e.target===ov) ov.remove(); }});
+  ov.appendChild(h('div',{class:'ai-card'},[
+    h('div',{class:'bc-head'},[ h('div',{class:'bc-title'}, '✨ Draft with AI'), h('button',{class:'ghost-btn', onclick:()=>ov.remove()}, 'Close ✕') ]),
+    h('div',{class:'ai-body'},[
+      h('div',{class:'field'},[ h('label',{},'Brief — what should this '+KINDS[state.kind].name+' say?'), brief ]),
+      h('div',{style:{display:'flex', gap:'10px'}},[
+        h('div',{class:'field', style:{flex:'1'}},[ h('label',{},'Model'), modelSel ]),
+        deck ? h('div',{class:'field', style:{flex:'1'}},[ h('label',{},'Scope'), scopeSel ]) : null ]),
+      h('div',{class:'field'},[ h('label',{},'OpenAI API key (stored only in this browser)'), keyInput ]),
+      h('div',{style:{display:'flex', alignItems:'center', gap:'12px'}},[
+        h('button',{class:'exp-btn primary', style:{flex:'0 0 auto', minWidth:'140px'},
+          onclick:()=>aiDraft(brief.value.trim(), deck?scopeSel.value:'slide', status)}, 'Draft → fill fields'),
+        status ]),
+      h('div',{class:'ai-note'}, 'Drafts the editable text, then you fine-tune on the canvas (⌘Z to undo). Tip: run the Studio via a local server (python3 -m http.server) so the API call isn’t blocked. Off unless you use it — no tokens spent otherwise.')
+    ]) ]));
+  document.body.appendChild(ov);
+}
+
+/* ============================================================
    BRAND LIBRARY — collection of reusable, repurposable assets
    ============================================================ */
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -2269,6 +2351,7 @@ function boot(){
   editorInitChrome();
   buildStageControls();
   $('#library-open').addEventListener('click', openGallery);
+  $('#ai-open').addEventListener('click', aiOpen);
   /* optional deep-link: ?kind=onepager&theme=light */
   const q = new URLSearchParams(location.search);
   if(q.get('kind') && KINDS[q.get('kind')]) state.kind = q.get('kind');

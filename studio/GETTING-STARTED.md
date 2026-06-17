@@ -22,6 +22,15 @@ Recommended browser: **Chrome or Edge** (best export fidelity). Works in Safari/
 
 ---
 
+## Draft with AI (optional)
+**Draft with AI** (top-right) is an opt-in helper — off unless you use it, so no
+tokens are spent otherwise. Paste your OpenAI key (kept only in this browser),
+type a brief, and it drafts **on-brand copy** into the asset's editable text
+fields; then you **fine-tune on the canvas** (⌘Z to undo). Token-optimised:
+defaults to the cheapest model (`gpt-4o-mini`), sends only field keys + truncated
+current text, "This slide" scope for decks, and shows the token count after each run.
+Run the Studio via a local server (`python3 -m http.server`) so the API call isn't blocked.
+
 ## Slide navigator
 Multi-slide assets (carousels, proposals, imported decks) show a **thumbnail strip**
 above the canvas — click a thumbnail to jump to that slide; the active one is
