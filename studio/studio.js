@@ -1938,8 +1938,7 @@ function renderElementsPanel(){
    then fine-tune by hand. Token-optimised: cheap model by default, only
    field keys + truncated current text sent, JSON response, this-slide scope.
    ============================================================ */
-const AI_KEY_LS = 'nt-openai-key', AI_MODEL_LS = 'nt-openai-model';
-const aiGetKey   = () => { try { return localStorage.getItem(AI_KEY_LS) || ''; } catch(e){ return ''; } };
+const AI_MODEL_LS = 'nt-openai-model';   // key lives in .env on the local server, never in the browser
 const aiGetModel = () => { try { return localStorage.getItem(AI_MODEL_LS) || 'gpt-4o-mini'; } catch(e){ return 'gpt-4o-mini'; } };
 
 /* the editable text fields of the current asset (current slide for decks) */
@@ -1967,21 +1966,21 @@ function aiApply(fields, obj){ let n=0; fields.forEach(f=>{ const v=obj[f.key]; 
 const AI_SYSTEM = "You are Newtuple's brand copywriter. Voice: calm authority — a practitioner, not a vendor. Active voice; precise technical vocabulary (ReAct, multi-agent orchestration, observability, agentic RAG) used correctly; outcome-led and quantified; short declarative sentences. Sentence case for headings/body; UPPERCASE only for short kicker/eyebrow labels. Product names: Dialogtuple, Gaugetuple. NO emoji ever. Respect each field's character budget. Return ONLY a JSON object mapping each given field key to its new text — include only keys you are changing.";
 
 async function aiDraft(brief, scope, statusEl){
-  const key = aiGetKey(); if(!key){ statusEl.textContent = 'Add your OpenAI API key first.'; return; }
   const fields = aiFields(scope); if(!fields.length){ statusEl.textContent = 'No editable text here to draft.'; return; }
   const spec = fields.map(f=>`- ${f.key} (≤${f.max} chars; current: "${f.cur.slice(0,90)}")`).join('\n');
   const user = `Brief: ${brief || '(improve and tighten the current copy, on-brand)'}\n\n`
     + `Draft copy for these fields of a Newtuple ${KINDS[state.kind].name}. Keep the meaning where it makes sense, match the brief, stay on-brand.\nFields:\n${spec}`;
   statusEl.textContent = 'Drafting…';
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key },
+    const res = await fetch('/api/openai', {        // local proxy injects the key from .env
+      method:'POST', headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({ model: aiGetModel(), temperature:0.7, max_tokens:1000,
         response_format:{ type:'json_object' },
         messages:[ {role:'system', content:AI_SYSTEM}, {role:'user', content:user} ] })
     });
-    if(!res.ok){ const t=await res.text(); throw new Error('API '+res.status+' — '+t.slice(0,140)); }
+    if(res.status===404) throw new Error('AI server not running — start it with: python3 tools/serve.py');
     const data = await res.json();
+    if(!res.ok) throw new Error((data && data.error && (data.error.message||data.error)) || ('error '+res.status));
     const obj = JSON.parse(data.choices[0].message.content);
     pushUndo(); const n = aiApply(fields, obj); persist(); renderAll();
     const u = data.usage||{}; statusEl.textContent = `Applied to ${n} field(s) · ${u.total_tokens||'?'} tokens (${aiGetModel()})`;
@@ -1991,7 +1990,6 @@ async function aiDraft(brief, scope, statusEl){
 
 function aiOpen(){
   const deck = isDeckKind(state.kind);
-  const keyInput = h('input',{type:'password', value:aiGetKey(), placeholder:'sk-…', oninput:e=>{ try{ localStorage.setItem(AI_KEY_LS, e.target.value.trim()); }catch(_){} }});
   const modelSel = h('select',{onchange:e=>{ try{ localStorage.setItem(AI_MODEL_LS, e.target.value); }catch(_){} }},
     [['gpt-4o-mini','gpt-4o-mini · cheapest'],['gpt-4o','gpt-4o · higher quality']].map(([v,t])=>h('option',{value:v, selected:v===aiGetModel()?'':null}, t)));
   const scopeSel = h('select',{}, [['slide','This slide — fewer tokens'],['all','All slides — more tokens']].map(([v,t])=>h('option',{value:v}, t)));
@@ -2005,12 +2003,11 @@ function aiOpen(){
       h('div',{style:{display:'flex', gap:'10px'}},[
         h('div',{class:'field', style:{flex:'1'}},[ h('label',{},'Model'), modelSel ]),
         deck ? h('div',{class:'field', style:{flex:'1'}},[ h('label',{},'Scope'), scopeSel ]) : null ]),
-      h('div',{class:'field'},[ h('label',{},'OpenAI API key (stored only in this browser)'), keyInput ]),
       h('div',{style:{display:'flex', alignItems:'center', gap:'12px'}},[
         h('button',{class:'exp-btn primary', style:{flex:'0 0 auto', minWidth:'140px'},
           onclick:()=>aiDraft(brief.value.trim(), deck?scopeSel.value:'slide', status)}, 'Draft → fill fields'),
         status ]),
-      h('div',{class:'ai-note'}, 'Drafts the editable text, then you fine-tune on the canvas (⌘Z to undo). Tip: run the Studio via a local server (python3 -m http.server) so the API call isn’t blocked. Off unless you use it — no tokens spent otherwise.')
+      h('div',{class:'ai-note'}, 'Uses your OpenAI key from .env — never sent to the browser. Run the Studio with python3 tools/serve.py (not file://) so /api/openai is available. Drafts the editable text; fine-tune on the canvas (⌘Z to undo). Off unless you use it.')
     ]) ]));
   document.body.appendChild(ov);
 }
