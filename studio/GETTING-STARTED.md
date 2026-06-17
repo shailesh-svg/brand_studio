@@ -58,8 +58,27 @@ and delete** slides/pages, and change each one's **type**.
 - **Click** any text to select it → a **brand toolbar** floats above it.
 - **Double-click** text to **edit it in place**. Press **Enter** to commit,
   **Esc** to cancel.
-- **Drag** a selected element to move it; it **snaps to centre** with cyan guides.
-- **Drag the round handle** (bottom-right of the selection) to resize/scale text.
+- **Drag** a selected element to move it; it **snaps** to the frame's centres,
+  margins, and edges with cyan guide lines.
+- **Align** buttons on the toolbar (`L C R · T M B`) snap the selection to frame
+  left/centre/right and top/middle/bottom in one click.
+- **Arrow keys** nudge (1px; **Shift** = 10px). **Delete** removes a selected
+  decoration; **⌘D** duplicates one.
+- **Drag the round handle** (bottom-right of the selection) to resize/scale.
+- **Snapping** also catches *other elements'* edges/centres and the **midpoint
+  between two** (equal spacing) — not just the frame.
+- **Multi-select decorations**: **Shift-click** several, then drag/align/duplicate/
+  delete them together (a "2 selected" toolbar appears).
+- **Layer order**: a decoration's toolbar has **send-behind-text / bring-to-front**
+  (⤓ / ⤒) — so glows and grids can sit behind your copy.
+- **Duplicate a slide/page**: the **⧉** button on each slide/page card in the form.
+
+### Guides & safety (top bar)
+- **Guides** toggles a **safe-area overlay** — a dashed margin box + centre lines so
+  nothing important sits too close to the edge for LinkedIn/print.
+- When a text element is selected, the toolbar shows an **AA contrast** chip
+  (e.g. `AA ✓ 7.1` / `AA ✗ 2.3`) comparing the text colour to its background, so
+  you catch unreadable combinations before exporting.
 
 The toolbar is **locked to the brand** — that's the point. You get:
 `A− / A+` size · `W− / W+` weight (Inter 200→700) · alignment · **brand-only colour

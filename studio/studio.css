@@ -307,7 +307,13 @@ body { background: var(--gray-50); overflow: hidden; }
 .stage.markup-mode{ cursor: crosshair; }
 .nt-decor { user-select: none; }
 .nt-decor.nt-selected { outline: none; box-shadow: 0 0 0 2px var(--cobalt); }
+.nt-decor.nt-multi { box-shadow: 0 0 0 2px var(--cyan); }
 .nt-decor:hover { box-shadow: 0 0 0 2px rgba(0,71,171,0.4); }
+.tb-count { color: rgba(255,255,255,0.8); font-size: 12px; font-weight: 500; padding: 0 8px; }
+.tb-count #multi-count { color: #fff; font-weight: 600; }
+.tb-contrast { align-items: center; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: var(--radius-full); }
+.tb-contrast.ok { background: rgba(31,169,113,0.22); color: #6EE7B0; }
+.tb-contrast.bad { background: rgba(214,69,69,0.25); color: #FCA5A5; }
 
 /* selection box (fixed, overlays the scaled frame) */
 .nt-selbox{
@@ -341,6 +347,8 @@ body { background: var(--gray-50); overflow: hidden; }
 }
 .tb-btn:hover{ background: rgba(255,255,255,0.14); color: #fff; }
 .tb-reset{ color: var(--gray-400); font-weight: 500; }
+.tb-min { min-width: 22px; padding: 0 6px; }
+.tb-div { width: 1px; height: 16px; background: rgba(255,255,255,0.18); display: inline-block; margin: 0 3px; align-self: center; }
 .tb-swatches{ gap: 5px; }
 .tb-swatch{ width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer; padding: 0;
   transition: transform 120ms var(--ease); }
