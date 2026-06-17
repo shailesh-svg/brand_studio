@@ -77,6 +77,22 @@ permanent shared starter, promote it into `starters.js` (see §2).
 Brand source of truth (colors, type, logos, voice) stays in the repo root:
 `README.md`, `colors_and_type.css`, `assets/`.
 
+### Editable replicas of approved decks
+
+`tools/build_imported.py` converts every `.pptx` in `uploads/approved/` into an
+**editable** deck for the Studio, written to `studio/imported-decks.js`. They show
+up under the new **Imported deck** asset type and in **Library → Imported decks
+(editable)** — every text box is click-to-edit, draggable and recolorable, at the
+deck's exact layout (fonts mapped to Inter). Run it whenever you add/replace an
+approved deck:
+
+```bash
+python tools/build_imported.py
+```
+
+For a fixed, exact viewer/print version, `tools/pptx_to_html.py` also makes a
+self-contained HTML + PDF replica (see the Tools section).
+
 ---
 
 ## Design elements (reusable SVG building blocks)

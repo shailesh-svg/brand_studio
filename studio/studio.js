@@ -402,6 +402,74 @@ function buildProposalPage(page, idx, total){
 }
 
 /* ============================================================
+   TEMPLATE: IMPORTED DECK (editable, from PPTX via tools/build_imported.py)
+   Each slide is rendered shape-by-shape at exact coordinates; text shapes are
+   click-to-edit, draggable and recolorable via the normal editor.
+   ============================================================ */
+function impRunStyle(r, fscale){
+  const s = { fontFamily:FONT };
+  if(r.fs) s.fontSize = (r.fs*(fscale||1)).toFixed(1)+'px';
+  if(r.b) s.fontWeight = '700';
+  if(r.i) s.fontStyle = 'italic';
+  if(r.u) s.textDecoration = 'underline';
+  if(r.sp) s.letterSpacing = r.sp+'px';
+  if(r.col) s.color = r.col;
+  return s;
+}
+function impParaStyle(p){
+  const s = { margin:'0', textAlign:(p.a||'left'),
+    lineHeight:(p.lh!=null ? p.lh : 1.15) };
+  if(p.mt) s.marginTop = p.mt+'px';
+  if(p.mb) s.marginBottom = p.mb+'px';
+  return s;
+}
+function impPara(p, fscale){
+  const pd = h('div',{style:impParaStyle(p)});
+  if(p.bu) pd.appendChild(h('span',{style:{marginRight:'8px'}}, p.bu));
+  (p.runs||[]).forEach(r=>{ if(r.br){ pd.appendChild(h('br')); return; }
+    pd.appendChild(h('span',{style:impRunStyle(r, fscale)}, r.s)); });
+  if(!p.runs || !p.runs.length) pd.appendChild(h('br'));
+  return pd;
+}
+function buildImportedSlide(deck, idx){
+  const slide = deck.slides[idx] || {shapes:[]};
+  const frame = h('div',{class:'nt-frame', style:{ width:deck.w+'px', height:deck.h+'px',
+    fontFamily:FONT, background: slide.bg || '#FFFFFF' }});
+  (slide.shapes||[]).forEach((sh,k)=>{
+    const st = { position:'absolute', left:sh.x+'px', top:sh.y+'px', width:sh.w+'px', height:sh.h+'px', boxSizing:'border-box' };
+    if(sh.fill){ if(String(sh.fill).indexOf('linear')===0) st.background = sh.fill; else st.backgroundColor = sh.fill; }
+    if(sh.r) st.borderRadius = (sh.r>=9999 ? '50%' : sh.r+'px');
+    if(sh.bd) st.border = sh.bd[0]+'px solid '+sh.bd[1];
+    if(sh.t==='img'){ st.objectFit='contain'; frame.appendChild(h('img',{src:sh.src, style:st})); return; }
+    if(sh.t==='text' && sh.tx){
+      const tx = sh.tx;
+      Object.assign(st, { display:'flex', flexDirection:'column',
+        justifyContent:({t:'flex-start',ctr:'center',b:'flex-end'}[tx.anchor]||'flex-start'),
+        padding: tx.pads[0]+'px '+tx.pads[1]+'px '+tx.pads[2]+'px '+tx.pads[3]+'px', overflow:'visible' });
+      const div = h('div',{class:'nt-imp-tx', style:st});
+      div.setAttribute('data-bind', 'slides.'+idx+'.shapes.'+k+'.tx.orig');
+      div.setAttribute('data-defstyle', '{}');
+      const joined = (tx.paras||[]).reduce((a,p)=> a + (p.runs||[]).reduce((b,r)=> b+(r.s||''), ''), '');
+      if(tx.orig === joined){ (tx.paras||[]).forEach(p=> div.appendChild(impPara(p, tx.fscale))); }
+      else { const r0 = ((tx.paras[0]||{}).runs||[])[0] || {};
+        const pd = h('div',{style:impParaStyle(tx.paras[0]||{a:'left'})});
+        pd.appendChild(h('span',{style:impRunStyle(r0, tx.fscale)}, tx.orig)); div.appendChild(pd); }
+      frame.appendChild(div); return;
+    }
+    frame.appendChild(h('div',{style:st}));
+  });
+  return frame;
+}
+/* shrink any imported text box that overflows (font substitution) — like PowerPoint autofit */
+function fitImported(frameEl){
+  frameEl.querySelectorAll('.nt-imp-tx').forEach(t=>{
+    let g=0; while(t.scrollHeight > t.clientHeight + 4 && g++ < 14){
+      t.querySelectorAll('span').forEach(s=>{ const fs=parseFloat(getComputedStyle(s).fontSize)||12; s.style.fontSize=(fs*0.97).toFixed(2)+'px'; });
+    }
+  });
+}
+
+/* ============================================================
    KIND REGISTRY
    ============================================================ */
 const KINDS = {
@@ -557,6 +625,13 @@ const KINDS = {
     frames(d){ const t=d.pages.length; return d.pages.map((p,i)=>({
       id:'p'+i, label:`${i+1}`, w:794, h:1123, build:()=>buildProposalPage(p, i, t) })); },
     file:'newtuple-proposal'
+  },
+  imported: {
+    name:'Imported deck', sub:'editable · from PPTX', icon:'pages', themes:['light'],
+    defaults(){ const m = window.NT_IMPORTED || {}; const k = Object.keys(m)[0];
+      const d = k ? m[k] : {w:794, h:1123, slides:[]}; return JSON.parse(JSON.stringify(d)); },
+    frames(d){ return (d.slides||[]).map((s,i)=>({ id:'s'+i, label:''+(i+1), w:d.w, h:d.h, build:()=>buildImportedSlide(d, i) })); },
+    file:'imported-deck'
   }
 };
 
@@ -645,6 +720,7 @@ function renderPreview(){
   $('#frame-dims').textContent = `${fr.w} × ${fr.h}`;
   applyOverrides(el);
   appendDecor(el, state.kind, state.active, true);
+  if(state.kind==='imported') requestAnimationFrame(()=>fitImported(el));
   if(state.safeArea) el.appendChild(safeAreaOverlay(fr));
   editorAttach(el);
   renderMarkup(el);
@@ -809,6 +885,10 @@ function renderForm(){
       d.pages.push({type:'content', kicker:'', title:'New page', body:'', items:['Point']}); state.active=d.pages.length-1; renderAll(); }},
       '+ Add page'));
   }
+  else if(state.kind==='imported'){
+    host.appendChild(h('div',{class:'rail-hint', style:{lineHeight:'1.6'}},
+      'Imported from PowerPoint. Click any text on the canvas to edit it, drag to move, recolor with the brand toolbar, and use the page tabs above to switch slides. Open a different deck from the Library → Imported decks.'));
+  }
 }
 function seedProposalDefaults(p, v){
   if(v==='section' && !p.number) p.number='01';
@@ -831,7 +911,8 @@ const EXPORTS = {
   post:['png','pdf','html'],
   banner:['png','pdf','html'],
   onepager:['pdf','png','docx','html'],
-  proposal:['pdf','pptx','docx','png','html']
+  proposal:['pdf','pptx','docx','png','html'],
+  imported:['pdf','pptx','png','html']
 };
 const EXP_LABEL = { png:'PNG', pdf:'PDF', pptx:'PPTX', docx:'DOCX', html:'HTML' };
 
@@ -1263,8 +1344,8 @@ function snapDrag(el){
   _frameEl.querySelectorAll('[data-bind], .nt-decor').forEach(o=>{
     if(o===el || el.contains(o) || o.contains(el)) return; others.push(o.getBoundingClientRect()); });
   others.forEach(o=>{ vt.push(o.left, o.left+o.width/2, o.right); ht.push(o.top, o.top+o.height/2, o.bottom); });
-  // equal-spacing: midpoint between two elements that overlap on the other axis
-  for(let i=0;i<others.length;i++) for(let j=i+1;j<others.length;j++){ const a=others[i], b=others[j];
+  // equal-spacing: midpoint between two elements that overlap on the other axis (skip when crowded)
+  if(others.length<=12) for(let i=0;i<others.length;i++) for(let j=i+1;j<others.length;j++){ const a=others[i], b=others[j];
     if(Math.min(a.bottom,b.bottom) > Math.max(a.top,b.top)) vt.push((a.left+a.width/2 + b.left+b.width/2)/2);
     if(Math.min(a.right,b.right) > Math.max(a.left,b.left)) ht.push((a.top+a.height/2 + b.top+b.height/2)/2);
   }
@@ -1529,8 +1610,9 @@ function decorElList(list, idx, interactive, wantBack){
   return layer;
 }
 function appendDecor(frameEl, kind, idx, interactive){
-  layerFrame(frameEl);
   const list = state.decor[kind] || [];
+  if(!list.length) return;          // no decorations → leave native stacking (e.g. imported decks) intact
+  layerFrame(frameEl);
   const back = decorElList(list, idx, interactive, true); if(back) frameEl.appendChild(back);
   const front = decorElList(list, idx, interactive, false); if(front) frameEl.appendChild(front);
 }
@@ -1772,8 +1854,8 @@ function refCard(ref){
   const row = h('div',{class:'lib-actions'});
   if(rep) row.appendChild(h('button',{class:'lib-act primary', onclick:()=>previewRef(ref)}, 'Open replica'));
   if(ed) row.appendChild(h('button',{class:'lib-act'+(rep?'':' primary'), onclick:()=>{
-    loadAsset(ed.kind, KINDS[ed.kind].themes[0], KINDS[ed.kind].defaults());
-    toast('Opened editable '+KINDS[ed.kind].name); }}, 'Edit in Studio'));
+    loadAsset(ed.kind, KINDS[ed.kind].themes[0], ed.deck ? ed.deck : KINDS[ed.kind].defaults());
+    toast('Opened editable '+(ed.deck ? ed.deck.name || 'deck' : KINDS[ed.kind].name)); }}, 'Edit in Studio'));
   if(!rep) row.appendChild(h('button',{class:'lib-act'+(ed?'':' primary'), onclick:()=>previewRef(ref)}, 'Preview'));
   c.appendChild(row);
   return c;
@@ -1788,7 +1870,15 @@ function replicaFor(ref){
 /* an approved reference that has an editable Studio equivalent opens there, not the raw file */
 function refToEditable(ref){
   const t = ((ref.title||'') + ' ' + (ref.file||'')).toLowerCase();
-  if(t.includes('proposal') || t.includes('pension')) return {kind:'proposal'};
+  const imp = window.NT_IMPORTED || {};
+  // prefer the faithful editable import if one matches this reference
+  for(const key in imp){
+    const kk = key.toLowerCase();
+    if((t.includes('pension') && kk.includes('pension')) ||
+       (t.includes('proposal') && kk.includes('proposal')) ||
+       (t.includes('fable') && kk.includes('fable')))
+      return {kind:'imported', deck:imp[key]};
+  }
   if(t.includes('onepager') || t.includes('one-pager') || t.includes('capability')) return {kind:'onepager'};
   return null;
 }
@@ -1827,6 +1917,8 @@ function buildGallery(){
     h('div',{class:'lib-body'},[
       h('div',{class:'rail-section-title nt-label'}, 'Starter collection'),
       h('div',{class:'lib-grid', id:'lib-grid-starters'}),
+      h('div',{class:'rail-section-title nt-label', id:'lib-imported-title', style:{marginTop:'24px'}}, 'Imported decks (editable)'),
+      h('div',{class:'lib-grid', id:'lib-grid-imported'}),
       h('div',{class:'rail-section-title nt-label', id:'lib-refs-title', style:{marginTop:'24px'}}, 'Approved references'),
       h('div',{class:'lib-grid', id:'lib-grid-refs'}),
       h('div',{class:'rail-section-title nt-label', style:{marginTop:'24px'}}, 'My library'),
@@ -1840,6 +1932,18 @@ function refreshGallery(){
     gs.appendChild(card({ name:s.name, kind:s.kind, theme:s.theme, data,
       actions:[ {label:'Open', cls:'primary', fn:()=>openStarter(s)} ],
       onTheme:(th)=>openStarter(s, th) })); });
+  const imp = window.NT_IMPORTED || {};
+  const gi = _gallery.querySelector('#lib-grid-imported'), it = _gallery.querySelector('#lib-imported-title');
+  gi.innerHTML = '';
+  const impKeys = Object.keys(imp);
+  if(!impKeys.length){ it.style.display='none'; gi.style.display='none'; }
+  else { it.style.display=''; gi.style.display='';
+    impKeys.forEach(key=>{ const deck = imp[key];
+      gi.appendChild(card({ name:(deck.name||key), kind:'imported', theme:'light', data:deck,
+        actions:[ {label:'Edit in Studio', cls:'primary', fn:()=>{ loadAsset('imported','light',deck); toast('Opened “'+(deck.name||key)+'”'); }} ],
+        onTheme:()=>{} })); });
+  }
+
   const refs = window.NT_REFERENCES || [];
   const gr = _gallery.querySelector('#lib-grid-refs'), rt = _gallery.querySelector('#lib-refs-title');
   gr.innerHTML='';
