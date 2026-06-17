@@ -1985,7 +1985,10 @@ async function aiDraft(brief, scope, statusEl){
     pushUndo(); const n = aiApply(fields, obj); persist(); renderAll();
     const u = data.usage||{}; statusEl.textContent = `Applied to ${n} field(s) · ${u.total_tokens||'?'} tokens (${aiGetModel()})`;
     toast('AI draft applied — fine-tune on the canvas');
-  } catch(e){ statusEl.textContent = 'Failed: ' + (e.message||e); }
+  } catch(e){ const m = (e && e.message) || String(e);
+    statusEl.textContent = /fetch/i.test(m)
+      ? 'Can’t reach the AI server. Run “python3 tools/serve.py” and open http://localhost:8000 (not file://).'
+      : 'Failed: ' + m; }
 }
 
 function aiOpen(){
