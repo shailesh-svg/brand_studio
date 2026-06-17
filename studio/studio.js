@@ -788,15 +788,18 @@ function updateActiveThumb(){
   strip.querySelectorAll('.thumb').forEach(t=>{ const on = (+t.getAttribute('data-i'))===state.active;
     t.classList.toggle('active', on); if(on) t.scrollIntoView({block:'nearest', inline:'nearest'}); });
 }
-let _scale = 1, _frameEl = null;
+let _scale = 1, _frameEl = null, _userZoom = null;
 function fitStage(){
   const fr = _frames[state.active]; if(!fr) return;
   const stage = $('#stage');
   const availW = stage.clientWidth - 96, availH = stage.clientHeight - 96;
-  _scale = Math.min(availW/fr.w, availH/fr.h, 1);
+  const fit = Math.min(availW/fr.w, availH/fr.h, 1);
+  _scale = _userZoom != null ? _userZoom : fit;
   $('#stage-scaler').style.transform = `scale(${_scale})`;
+  const dims = $('#frame-dims'); if(dims) dims.textContent = `${fr.w} × ${fr.h} · ${Math.round(_scale*100)}%`;
   positionChrome(); positionMulti();
 }
+function setZoom(mult){ _userZoom = Math.max(0.1, Math.min(4, (_scale||1)*mult)); fitStage(); }
 
 /* ---------------- FORM ---------------- */
 function field(label, value, oninput, opts){
@@ -820,9 +823,10 @@ function renderDeckBody(host, d){
   host.appendChild(h('div',{class:'rail-hint', style:{lineHeight:'1.6'}},
     'Click any element to select it — drag to move, corner to resize, toolbar to recolor / restyle, double-click text to edit. Arrow keys nudge · ⌘D duplicate · ⌫ delete.'));
   host.appendChild(h('div',{class:'rail-section-title nt-label', style:{marginTop:'8px'}}, 'Add to this slide'));
-  host.appendChild(h('div',{style:{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px'}},
-    [ h('button',{class:'add-slide-btn', onClick:()=>addShape('text')}, '+ Text box'),
-      h('button',{class:'add-slide-btn', onClick:()=>addShape('rect')}, '+ Rectangle') ]));
+  host.appendChild(h('div',{style:{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px'}},
+    [ h('button',{class:'add-slide-btn', onClick:()=>addShape('text')}, '+ Text'),
+      h('button',{class:'add-slide-btn', onClick:()=>addShape('rect')}, '+ Rect'),
+      h('button',{class:'add-slide-btn', onClick:()=>addImageShape()}, '+ Image') ]));
   host.appendChild(h('div',{class:'rail-section-title nt-label', style:{marginTop:'12px'}}, 'Slides'));
   host.appendChild(h('div',{style:{display:'flex', gap:'8px', flexWrap:'wrap'}},
     [ h('button',{class:'add-slide-btn', onClick:()=>{ pushUndo(); d.slides.splice(state.active+1,0, JSON.parse(JSON.stringify(d.slides[state.active]))); state.active++; editorDeselect(); renderAll(); }}, '⧉ Duplicate slide'),
@@ -987,7 +991,7 @@ function seedProposalDefaults(p, v){
 /* live preview without rebuilding form (keeps input focus) */
 function live(frameIdx){ if(frameIdx!=null) state.active=frameIdx; renderPreview(); persist(); }
 
-function renderAll(){ _tabsKey=''; renderKindList(); renderTheme(); renderElementsPanel(); renderForm(); renderPreview(); renderExportButtons(); persist(); }
+function renderAll(){ _tabsKey=''; _userZoom=null; renderKindList(); renderTheme(); renderElementsPanel(); renderForm(); renderPreview(); renderExportButtons(); persist(); }
 
 /* ============================================================
    EXPORT
@@ -1656,6 +1660,18 @@ function alignShapeToSlide(where){ const sh=shapeObj(); if(!sh) return; const d=
   if(where==='top') sh.y=Math.round(d.h*m);
   if(where==='vcenter') sh.y=Math.round((d.h-sh.h)/2);
   if(where==='bottom') sh.y=Math.round(d.h-d.h*m-sh.h); }); }
+function addImageShape(){
+  const d = state.data[state.kind], sl = d.slides[state.active]; if(!sl) return;
+  const inp = h('input',{type:'file', accept:'image/*', style:{display:'none'}});
+  inp.addEventListener('change', e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
+    rd.onload=()=>{ const img=new Image(); img.onload=()=>{ const maxW=d.w*0.5; let w=img.width, hh=img.height;
+        if(w>maxW){ hh=hh*maxW/w; w=maxW; }
+        pushUndo(); sl.shapes.push({ t:'img', x:Math.round(d.w*0.12), y:Math.round(d.h*0.18), w:Math.round(w), h:Math.round(hh), src:rd.result });
+        _selShape={ i:state.active, k:sl.shapes.length-1 }; _selKind='shape'; persist(); renderPreview(); toast('Image added — drag to place'); };
+      img.src = rd.result; };
+    rd.readAsDataURL(f); });
+  document.body.appendChild(inp); inp.click(); setTimeout(()=>inp.remove(), 1000);
+}
 function addShape(kind){
   const d=state.data[state.kind], sl=d.slides[state.active]; if(!sl) return;
   const x=Math.round(d.w*0.12), y=Math.round(d.h*0.18);
@@ -2196,7 +2212,9 @@ function boot(){
   else if(!KINDS[state.kind].themes.includes(state.theme)) state.theme = KINDS[state.kind].themes[0];
   const pg = parseInt(q.get('page')); if(pg>0) state.active = pg-1;
   renderAll();
-  $('#zoom-fit').addEventListener('click', fitStage);
+  $('#zoom-fit').addEventListener('click', ()=>{ _userZoom=null; fitStage(); });
+  $('#zoom-in').addEventListener('click', ()=>setZoom(1.2));
+  $('#zoom-out').addEventListener('click', ()=>setZoom(1/1.2));
   window.addEventListener('resize', ()=>{ fitStage(); positionChrome(); positionMulti(); });
   $('#stage').addEventListener('scroll', ()=>{ positionChrome(); positionMulti(); }, {passive:true});
   document.addEventListener('keydown', (e)=>{

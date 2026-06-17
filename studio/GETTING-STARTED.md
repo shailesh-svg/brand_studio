@@ -63,7 +63,8 @@ Drop an approved deck in `uploads/approved/`, run `python tools/build_imported.p
 and it appears under **Imported deck** and **Library → Imported decks (editable)**.
 **Every element is editable**: click any text / box / image to select → drag to
 move, corner-handle to resize, toolbar to recolor + restyle (and align to the
-page), double-click text to edit. **Add** a Text box or Rectangle, **⌘D** to
+page), double-click text to edit. **Add** a Text box, Rectangle or **Image**
+(upload), **zoom** with the −/Fit/+ controls for precise placement, **⌘D** to
 duplicate, **⌫** to delete, front/back to reorder. Manage slides (duplicate /
 delete / add blank) from the panel. Export to PDF / PPTX / PNG / HTML.
 
