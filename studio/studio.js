@@ -1768,13 +1768,22 @@ function refCard(ref){
   c.appendChild(h('div',{class:'lib-badge'}, ref.group==='approved' ? 'Approved' : 'Reference'));
   c.appendChild(h('div',{class:'lib-meta'},[ h('div',{class:'lib-name'}, ref.title) ]));
   const ed = refToEditable(ref);
+  const rep = replicaFor(ref);
   const row = h('div',{class:'lib-actions'});
-  if(ed) row.appendChild(h('button',{class:'lib-act primary', onclick:()=>{
+  if(rep) row.appendChild(h('button',{class:'lib-act primary', onclick:()=>previewRef(ref)}, 'Open replica'));
+  if(ed) row.appendChild(h('button',{class:'lib-act'+(rep?'':' primary'), onclick:()=>{
     loadAsset(ed.kind, KINDS[ed.kind].themes[0], KINDS[ed.kind].defaults());
     toast('Opened editable '+KINDS[ed.kind].name); }}, 'Edit in Studio'));
-  row.appendChild(h('button',{class:'lib-act'+(ed?'':' primary'), onclick:()=>previewRef(ref)}, 'Preview'));
+  if(!rep) row.appendChild(h('button',{class:'lib-act'+(ed?'':' primary'), onclick:()=>previewRef(ref)}, 'Preview'));
   c.appendChild(row);
   return c;
+}
+/* faithful, exact HTML replica for an approved file (if one has been built) */
+function replicaFor(ref){
+  const t = ((ref.title||'')+' '+(ref.file||'')).toLowerCase();
+  if(t.includes('pension') || (t.includes('proposal') && t.includes('contribution')))
+    return '../Proposals/Pension-Proposal-Replica.html';
+  return null;
 }
 /* an approved reference that has an editable Studio equivalent opens there, not the raw file */
 function refToEditable(ref){
@@ -1786,8 +1795,10 @@ function refToEditable(ref){
 /* in-app preview — never navigates the Studio away to the original file path */
 function previewRef(ref){
   const ov = h('div',{class:'lib-lightbox', onclick:e=>{ if(e.target===ov) ov.remove(); }});
+  const rep = replicaFor(ref);
   let media;
-  if(ref.type==='image') media = h('img',{src:ref.file, class:'lb-media', alt:ref.title});
+  if(rep) media = h('iframe',{src:rep, class:'lb-frame'});                              // exact multi-page replica
+  else if(ref.type==='image') media = h('img',{src:ref.file, class:'lb-media', alt:ref.title});
   else if(ref.type==='pdf' || ref.type==='page') media = h('iframe',{src:ref.file, class:'lb-frame'});
   else media = h('img',{src:ref.thumb || ref.file, class:'lb-media', alt:ref.title}); // deck/doc → first-page thumbnail
   ov.appendChild(h('div',{class:'lb-card'},[

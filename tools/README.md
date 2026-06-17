@@ -3,6 +3,27 @@
 Python utilities that operate on brand artifacts. The brand font is **Inter**;
 these tools enforce that on Office documents.
 
+## `pptx_to_html.py` — exact HTML/PDF replica of a deck
+
+Turns a `.pptx` into a **faithful, self-contained HTML replica** — every slide's
+shapes, text boxes, images and colours at their exact coordinates, with fonts
+mapped to **Inter** and images embedded as data URIs. A small auto-fit script
+shrinks any text box whose content overflows (so font substitution never clips
+or overlaps), mirroring PowerPoint's autofit.
+
+```bash
+python tools/pptx_to_html.py "uploads/approved/<deck>.pptx" "Proposals/<deck>-Replica.html"
+# exact A4 PDF (headless Chrome print):
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new \
+  --no-pdf-header-footer --run-all-compositor-stages-before-draw --virtual-time-budget=10000 \
+  --print-to-pdf="Proposals/<deck>-Replica.pdf" "file://$PWD/Proposals/<deck>-Replica.html"
+```
+
+Built for Google-Slides-style exports (text boxes + rectangles + images), which
+convert near-exactly. The Pension proposal replica is wired into the Studio:
+Library → Approved references → the proposal card's **Open replica** shows the
+12-page HTML; **Edit in Studio** opens the editable (simplified) template.
+
 ## `embed_inter.py` — make a deck use (and carry) Inter
 
 Office files (`.pptx`) often arrive set in Arial/Calibri because the author's
