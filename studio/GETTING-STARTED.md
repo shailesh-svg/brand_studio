@@ -22,6 +22,11 @@ Recommended browser: **Chrome or Edge** (best export fidelity). Works in Safari/
 
 ---
 
+## Slide navigator
+Multi-slide assets (carousels, proposals, imported decks) show a **thumbnail strip**
+above the canvas — click a thumbnail to jump to that slide; the active one is
+highlighted. It refreshes when you add / delete / reorder slides.
+
 ## 2. The screen
 
 Three panes:

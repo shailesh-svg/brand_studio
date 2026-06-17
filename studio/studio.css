@@ -122,6 +122,18 @@ body { background: var(--gray-50); overflow: hidden; }
 }
 .ghost-btn:hover { border-color: var(--cobalt); color: var(--cobalt); }
 
+.thumb-strip {
+  flex: 0 0 auto; display: flex; gap: 8px; overflow-x: auto; align-items: center;
+  padding: 8px 14px; background: var(--gray-100); border-bottom: 1px solid var(--border);
+}
+.thumb { flex: 0 0 auto; cursor: pointer; border: 2px solid transparent; border-radius: 7px; padding: 2px; position: relative;
+  transition: border-color var(--dur-hover) var(--ease); }
+.thumb:hover { border-color: var(--border-strong); }
+.thumb.active { border-color: var(--cobalt); }
+.thumb-box { overflow: hidden; background: #fff; border: 1px solid var(--border); border-radius: 3px; box-shadow: var(--shadow-xs); }
+.thumb-n { position: absolute; bottom: 3px; right: 4px; font-size: 9px; font-weight: 600; color: var(--gray-600);
+  background: rgba(255,255,255,0.85); padding: 0 4px; border-radius: 3px; }
+
 .stage {
   flex: 1 1 auto; min-height: 0; overflow: auto;
   display: grid; place-items: center; padding: var(--space-12);

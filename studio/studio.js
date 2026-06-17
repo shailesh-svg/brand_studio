@@ -743,18 +743,16 @@ function renderTheme(){
   });
 }
 
-let _frames = [];
+let _frames = [], _tabsKey = '';
 function renderPreview(){
   const kind = KINDS[state.kind];
   _frames = kind.frames(state.data[state.kind], state.theme);
   if(state.active>=_frames.length) state.active=0;
 
-  /* tabs */
-  const tabs = $('#frame-tabs'); tabs.innerHTML='';
-  if(_frames.length>1){
-    _frames.forEach((f,i)=>tabs.appendChild(h('button',{class:'frame-tab'+(i===state.active?' active':''),
-      onClick:()=>{ state.active=i; renderPreview(); }}, f.label)));
-  }
+  /* thumbnail navigator — rebuilt only when the deck shape changes, not on every edit */
+  const key = state.kind+':'+state.theme+':'+_frames.length;
+  if(key!==_tabsKey){ _tabsKey=key; buildThumbStrip(); }
+  updateActiveThumb();
   /* mount active frame */
   const fr = _frames[state.active];
   const scaler = $('#stage-scaler'); scaler.innerHTML='';
@@ -769,6 +767,26 @@ function renderPreview(){
   editorAttach(el);
   renderMarkup(el);
   requestAnimationFrame(()=>{ fitStage(); editorReselect(); });
+}
+function buildThumbStrip(){
+  const strip = $('#thumb-strip'); if(!strip) return; strip.innerHTML='';
+  if(_frames.length<=1){ strip.style.display='none'; return; }
+  strip.style.display='flex';
+  _frames.forEach((fr,i)=>{
+    const W=72, sc=W/fr.w;
+    const tile = h('div',{class:'thumb', 'data-i':i, title:'Slide '+(i+1),
+      onClick:()=>{ state.active=i; editorDeselect(); renderPreview(); }});
+    const box = h('div',{class:'thumb-box', style:{width:W+'px', height:Math.round(fr.h*sc)+'px'}});
+    let el; try { el = fr.build(); } catch(e){ el = h('div'); }
+    box.appendChild(h('div',{style:{transformOrigin:'top left', transform:'scale('+sc+')', width:fr.w+'px', height:fr.h+'px'}}, [el]));
+    tile.appendChild(box); tile.appendChild(h('span',{class:'thumb-n'}, ''+(i+1)));
+    strip.appendChild(tile);
+  });
+}
+function updateActiveThumb(){
+  const strip = $('#thumb-strip'); if(!strip) return;
+  strip.querySelectorAll('.thumb').forEach(t=>{ const on = (+t.getAttribute('data-i'))===state.active;
+    t.classList.toggle('active', on); if(on) t.scrollIntoView({block:'nearest', inline:'nearest'}); });
 }
 let _scale = 1, _frameEl = null;
 function fitStage(){
@@ -969,7 +987,7 @@ function seedProposalDefaults(p, v){
 /* live preview without rebuilding form (keeps input focus) */
 function live(frameIdx){ if(frameIdx!=null) state.active=frameIdx; renderPreview(); persist(); }
 
-function renderAll(){ renderKindList(); renderTheme(); renderElementsPanel(); renderForm(); renderPreview(); renderExportButtons(); persist(); }
+function renderAll(){ _tabsKey=''; renderKindList(); renderTheme(); renderElementsPanel(); renderForm(); renderPreview(); renderExportButtons(); persist(); }
 
 /* ============================================================
    EXPORT
