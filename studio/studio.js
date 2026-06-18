@@ -2112,12 +2112,15 @@ function aiApply(fields, obj){ let n=0; fields.forEach(f=>{ const v=obj[f.key]; 
 
 const AI_SYSTEM = "You are Newtuple's brand copywriter. Voice: calm authority — a practitioner, not a vendor. Active voice; precise technical vocabulary (ReAct, multi-agent orchestration, observability, agentic RAG) used correctly; outcome-led and quantified; short declarative sentences. Sentence case for headings/body; UPPERCASE only for short kicker/eyebrow labels. Product names: Dialogtuple, Gaugetuple. NO emoji ever. Respect each field's character budget. Return ONLY a JSON object mapping each given field key to its new text — include only keys you are changing.";
 
-async function aiDraft(brief, scope, statusEl){
+async function aiDraft(brief, scope, statusEl, mode){
   const fields = aiFields(scope); if(!fields.length){ statusEl.textContent = 'No editable text here to draft.'; return; }
   const spec = fields.map(f=>`- ${f.key} (≤${f.max} chars; current: "${f.cur.slice(0,90)}")`).join('\n');
-  const user = `Brief: ${brief || '(improve and tighten the current copy, on-brand)'}\n\n`
-    + `Draft copy for these fields of a Newtuple ${KINDS[state.kind].name}. Keep the meaning where it makes sense, match the brief, stay on-brand.\nFields:\n${spec}`;
-  statusEl.textContent = 'Drafting…';
+  const asset = (B.product ? '' : '') + (KINDS[state.kind].name);
+  const user = mode==='convert'
+    ? `Convert the user's draft below into on-brand copy for a ${asset}. Preserve the meaning and substance; rewrite in the brand voice and FIT it onto the fields (split, tighten or expand as needed; respect the budgets). Use only what's in the draft — don't invent facts.\n\nDRAFT:\n${brief || '(no draft provided)'}\n\nFields:\n${spec}`
+    : `Brief: ${brief || '(improve and tighten the current copy, on-brand)'}\n\n`
+      + `Draft copy for these fields of a ${asset}. Keep the meaning where it makes sense, match the brief, stay on-brand.\nFields:\n${spec}`;
+  statusEl.textContent = mode==='convert' ? 'Converting…' : 'Drafting…';
   try {
     const res = await fetch('/api/openai', {        // local proxy injects the key from .env
       method:'POST', headers:{ 'Content-Type':'application/json' },
@@ -2143,21 +2146,27 @@ function aiOpen(){
   const modelSel = h('select',{onchange:e=>{ try{ localStorage.setItem(AI_MODEL_LS, e.target.value); }catch(_){} }},
     [['gpt-4o-mini','gpt-4o-mini · cheapest'],['gpt-4o','gpt-4o · higher quality']].map(([v,t])=>h('option',{value:v, selected:v===aiGetModel()?'':null}, t)));
   const scopeSel = h('select',{}, [['slide','This slide — fewer tokens'],['all','All slides — more tokens']].map(([v,t])=>h('option',{value:v}, t)));
-  const brief = h('textarea',{rows:3, placeholder:'e.g. Carousel on why agent architecture beats bigger models — 5 patterns, end with a question.'});
+  const modeSel = h('select',{onchange:()=>{ const c=modeSel.value==='convert';
+      lbl.textContent = c ? 'Paste your draft — it’ll be matched to the brand & this layout' : 'Brief — what should this '+KINDS[state.kind].name+' say?';
+      brief.placeholder = c ? 'Paste your existing copy / rough draft here…' : 'e.g. A carousel on our 5 delivery principles — end with a question.';
+      btn.textContent = c ? 'Convert → fill fields' : 'Draft → fill fields'; }},
+    [['brief','Draft from a brief'],['convert','Convert my draft (match the style)']].map(([v,t])=>h('option',{value:v}, t)));
+  const brief = h('textarea',{rows:4, placeholder:'e.g. A carousel on our 5 delivery principles — end with a question.'});
+  const lbl = h('label',{}, 'Brief — what should this '+KINDS[state.kind].name+' say?');
   const status = h('div',{class:'ai-status'});
+  const btn = h('button',{class:'exp-btn primary', style:{flex:'0 0 auto', minWidth:'150px'},
+    onclick:()=>aiDraft(brief.value.trim(), deck?scopeSel.value:'slide', status, modeSel.value)}, 'Draft → fill fields');
   const ov = h('div',{class:'lib-lightbox', onclick:e=>{ if(e.target===ov) ov.remove(); }});
   ov.appendChild(h('div',{class:'ai-card'},[
     h('div',{class:'bc-head'},[ h('div',{class:'bc-title'}, '✨ Draft with AI'), h('button',{class:'ghost-btn', onclick:()=>ov.remove()}, 'Close ✕') ]),
     h('div',{class:'ai-body'},[
-      h('div',{class:'field'},[ h('label',{},'Brief — what should this '+KINDS[state.kind].name+' say?'), brief ]),
+      h('div',{class:'field'},[ h('label',{},'Mode'), modeSel ]),
+      h('div',{class:'field'},[ lbl, brief ]),
       h('div',{style:{display:'flex', gap:'10px'}},[
         h('div',{class:'field', style:{flex:'1'}},[ h('label',{},'Model'), modelSel ]),
         deck ? h('div',{class:'field', style:{flex:'1'}},[ h('label',{},'Scope'), scopeSel ]) : null ]),
-      h('div',{style:{display:'flex', alignItems:'center', gap:'12px'}},[
-        h('button',{class:'exp-btn primary', style:{flex:'0 0 auto', minWidth:'140px'},
-          onclick:()=>aiDraft(brief.value.trim(), deck?scopeSel.value:'slide', status)}, 'Draft → fill fields'),
-        status ]),
-      h('div',{class:'ai-note'}, 'Uses your OpenAI key from .env — never sent to the browser. Run the Studio with python3 tools/serve.py (not file://) so /api/openai is available. Drafts the editable text; fine-tune on the canvas (⌘Z to undo). Off unless you use it.')
+      h('div',{style:{display:'flex', alignItems:'center', gap:'12px'}},[ btn, status ]),
+      h('div',{class:'ai-note'}, 'Uses your OpenAI key from .env — never sent to the browser. Run the Studio with python3 tools/serve.py (not file://) so /api/openai is available. Drafts/converts the editable text; fine-tune on the canvas (⌘Z to undo). Off unless you use it.')
     ]) ]));
   document.body.appendChild(ov);
 }

@@ -24,8 +24,12 @@ Recommended browser: **Chrome or Edge** (best export fidelity). Works in Safari/
 
 ## Draft with AI (optional)
 **Draft with AI** (top-right) is an opt-in helper — off unless you use it, so no
-tokens are spent otherwise. Type a brief and it drafts **on-brand copy** into the
-asset's editable text fields; then you **fine-tune on the canvas** (⌘Z to undo).
+tokens are spent otherwise. Two modes:
+- **Draft from a brief** — say what it should say; it writes on-brand copy.
+- **Convert my draft (match the style)** — paste your existing/rough copy and it
+  rewrites it into the brand voice and fits it onto the asset's fields.
+
+Either way it fills the editable text; then you **fine-tune on the canvas** (⌘Z to undo).
 
 Your key lives in **`.env`** (server-side) and is **never sent to the browser** —
 a tiny local proxy (`tools/serve.py`) injects it. Setup:
