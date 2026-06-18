@@ -238,6 +238,20 @@ body { background: var(--gray-50); overflow: hidden; }
 .ai-status { font-size: 12px; color: var(--gray-600); }
 .ai-note { font-size: 11px; color: var(--gray-400); line-height: 1.5; border-top: 1px solid var(--border); padding-top: 12px; }
 
+/* right-click context menu */
+.nt-ctx { position: fixed; z-index: 400; min-width: 184px; background: var(--white);
+  border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); padding: 5px; }
+.nt-ctx-item { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 7px 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--text-sm); color: var(--gray-700); }
+.nt-ctx-item:hover { background: var(--gray-50); color: var(--cobalt); }
+.nt-ctx-item.danger:hover { background: var(--danger-bg); color: var(--danger); }
+.nt-ctx-key { font-size: 11px; color: var(--gray-400); }
+
+/* shortcuts rows */
+.sc-row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 2px; border-bottom: 1px solid var(--gray-100); }
+.sc-k { font-weight: var(--w-medium); color: var(--gray-900); font-size: var(--text-sm); }
+.sc-v { color: var(--gray-500); font-size: var(--text-sm); text-align: right; }
+
 /* ============================================================
    BRAND LIBRARY GALLERY
    ============================================================ */

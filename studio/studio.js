@@ -1358,6 +1358,7 @@ function enterEdit(el){
 function editorAttach(frameEl){
   frameEl.addEventListener('pointerdown', onFramePointerDown);
   frameEl.addEventListener('dblclick', (e)=>{ const el = e.target.closest('[data-bind]'); if(el) enterEdit(el); });
+  frameEl.addEventListener('contextmenu', showContextMenu);
 }
 function onFramePointerDown(e){
   if(_editing) return;
@@ -1427,10 +1428,11 @@ function beginResize(e){
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); return;
   }
   if(_selKind==='shape'){
-    const sh = shapeObj(); if(!sh) return;
-    const sx=e.clientX, sy=e.clientY, w0=sh.w, h0=sh.h;
+    const sh = shapeObj(); if(!sh || sh.lock) return;
+    const sx=e.clientX, sy=e.clientY, w0=sh.w, h0=sh.h, ar=w0/Math.max(1,h0);
     const move=(ev)=>{ if(!pushed){ pushUndo(); pushed=true; }
-      sh.w=Math.max(16, Math.round(w0+(ev.clientX-sx)/_scale)); sh.h=Math.max(12, Math.round(h0+(ev.clientY-sy)/_scale));
+      sh.w=Math.max(16, Math.round(w0+(ev.clientX-sx)/_scale));
+      sh.h = ev.shiftKey ? Math.max(12, Math.round(sh.w/ar)) : Math.max(12, Math.round(h0+(ev.clientY-sy)/_scale));
       _selEl.style.width=sh.w+'px'; _selEl.style.height=sh.h+'px'; positionChrome(); };
     const up=()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); persist(); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); return;
@@ -1629,7 +1631,7 @@ function selectShape(el){
   _sbar.style.display='flex'; positionChrome();
 }
 function beginShapeDrag(e, el){
-  const sh = shapeObj(); if(!sh) return;
+  const sh = shapeObj(); if(!sh || sh.lock) return;
   const sx=e.clientX, sy=e.clientY, x0=sh.x, y0=sh.y; let moved=false, pushed=false;
   const move=(ev)=>{ const ddx=ev.clientX-sx, ddy=ev.clientY-sy;
     if(!moved && Math.abs(ddx)+Math.abs(ddy)<3) return; moved=true; if(!pushed){ pushUndo(); pushed=true; }
@@ -1681,6 +1683,72 @@ function addShape(kind){
     : { t:'rect', x, y, w:Math.round(d.w*0.4), h:Math.round(d.h*0.12), fill:C.gray50, bd:[1, C.gray200], r:10 };
   pushUndo(); sl.shapes.push(sh); _selShape={ i:state.active, k:sl.shapes.length-1 }; _selKind='shape'; persist(); renderPreview();
   toast('Added '+(kind==='text'?'text box':'rectangle'));
+}
+function toggleLock(){ const sh=shapeObj(); if(!sh) return; pushUndo(); sh.lock=!sh.lock; persist(); renderPreview(); toast(sh.lock?'Locked':'Unlocked'); }
+
+/* ---------- clipboard: copy / paste shapes & decorations ---------- */
+let _clip = null;
+function copySel(){
+  if(_selKind==='shape'){ const sh=shapeObj(); if(sh){ _clip={type:'shape', items:[JSON.parse(JSON.stringify(sh))]}; toast('Copied'); } }
+  else if(_selKind==='decor'){ const d=getDecor(); if(d){ _clip={type:'decor', items:[JSON.parse(JSON.stringify(d))]}; toast('Copied'); } }
+}
+function pasteClip(){
+  if(!_clip) return;
+  if(_clip.type==='shape' && isDeckKind(state.kind)){
+    const sl=state.data[state.kind].slides[state.active]; if(!sl) return; pushUndo(); let lastK;
+    _clip.items.forEach(it=>{ const c=JSON.parse(JSON.stringify(it)); c.x=(c.x||0)+20; c.y=(c.y||0)+20; sl.shapes.push(c); lastK=sl.shapes.length-1; });
+    _selShape={i:state.active,k:lastK}; _selKind='shape'; persist(); renderPreview(); toast('Pasted');
+  } else if(_clip.type==='decor'){
+    pushUndo(); let lastId;
+    _clip.items.forEach(it=>{ const c=JSON.parse(JSON.stringify(it)); c.id=uid(); c.x=(c.x||0)+20; c.y=(c.y||0)+20; c.frame=state.active; (state.decor[state.kind]=state.decor[state.kind]||[]).push(c); lastId=c.id; });
+    _selKind='decor'; _selDecorId=lastId; persist(); renderPreview(); toast('Pasted');
+  }
+}
+
+/* ---------- right-click context menu ---------- */
+function showContextMenu(e){
+  const sEl = e.target.closest('[data-shape]'), dc = e.target.closest('.nt-decor');
+  if(!isDeckKind(state.kind) && !dc && !e.target.closest('[data-bind]') && !_clip) return;  // nothing useful → native menu
+  e.preventDefault();
+  document.querySelectorAll('.nt-ctx').forEach(m=>m.remove());
+  if(isDeckKind(state.kind) && sEl){ if(sEl!==_selEl) selectShape(sEl); }
+  else if(dc){ if(dc!==_selEl) selectDecor(dc); }
+  const isShape=_selKind==='shape', isDecor=_selKind==='decor';
+  const items=[];
+  if(isShape||isDecor) items.push(['Copy', '⌘C', copySel]);
+  if(_clip) items.push(['Paste', '⌘V', pasteClip]);
+  if(isShape){ const sh=shapeObj();
+    items.push(['Duplicate','⌘D', shapeDup], ['Bring to front','', ()=>shapeLayer(1)], ['Send to back','', ()=>shapeLayer(-1)],
+      [sh&&sh.lock?'Unlock':'Lock','', toggleLock], ['Delete','⌫', shapeDel, 'danger']); }
+  else if(isDecor){ items.push(['Duplicate','⌘D', duplicateDecor], ['Send behind text','', ()=>setDecorBack(true)],
+      ['Bring in front','', ()=>setDecorBack(false)], ['Delete','⌫', deleteDecor, 'danger']); }
+  if(!items.length) return;
+  const menu = h('div',{class:'nt-ctx', style:{left:Math.min(e.clientX, window.innerWidth-200)+'px', top:Math.min(e.clientY, window.innerHeight-items.length*34-10)+'px'}});
+  items.forEach(([label,key,fn,cls])=> menu.appendChild(h('div',{class:'nt-ctx-item'+(cls?' '+cls:''),
+    onclick:()=>{ menu.remove(); fn(); }}, [ h('span',{}, label), h('span',{class:'nt-ctx-key'}, key||'') ])));
+  document.body.appendChild(menu);
+  const close=(ev)=>{ if(!menu.contains(ev.target)){ menu.remove(); window.removeEventListener('pointerdown',close,true); } };
+  setTimeout(()=>window.addEventListener('pointerdown',close,true), 0);
+}
+
+/* ---------- keyboard shortcuts help ---------- */
+function showShortcuts(){
+  const rows = [
+    ['Select / move','Click an element, then drag'],
+    ['Edit text','Double-click (or Edit on the toolbar)'],
+    ['Nudge','Arrow keys · Shift+Arrow = 10px'],
+    ['Resize','Drag the corner handle · Shift = lock aspect'],
+    ['Duplicate','⌘D'], ['Copy / Paste','⌘C / ⌘V'],
+    ['Delete','Delete or Backspace'],
+    ['Undo / Redo','⌘Z / ⇧⌘Z'],
+    ['Deselect','Esc'], ['Right-click','Context menu (copy, layer, lock…)'],
+    ['Brand check','“Check” in the top bar'], ['This help','?']
+  ];
+  const ov = h('div',{class:'lib-lightbox', onclick:e=>{ if(e.target===ov) ov.remove(); }});
+  ov.appendChild(h('div',{class:'ai-card', style:{maxWidth:'460px'}},[
+    h('div',{class:'bc-head'},[ h('div',{class:'bc-title'}, 'Keyboard & editing'), h('button',{class:'ghost-btn', onclick:()=>ov.remove()}, 'Close ✕') ]),
+    h('div',{class:'ai-body', style:{gap:'0'}}, rows.map(([a,b])=> h('div',{class:'sc-row'},[ h('span',{class:'sc-k'}, a), h('span',{class:'sc-v'}, b) ]))) ]));
+  document.body.appendChild(ov);
 }
 
 /* ---------- safe-area / margin overlay ---------- */
@@ -2372,7 +2440,10 @@ function boot(){
     const meta = e.metaKey || e.ctrlKey;
     if(meta && e.key.toLowerCase()==='z'){ if(inField) return; e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if(inField) return;
-    if(e.key==='Escape'){ editorDeselect(); return; }
+    if(e.key==='?' || (e.shiftKey && e.key==='/')){ e.preventDefault(); showShortcuts(); return; }
+    if(e.key==='Escape'){ editorDeselect(); document.querySelectorAll('.nt-ctx').forEach(m=>m.remove()); return; }
+    if(meta && e.key.toLowerCase()==='c'){ if(_selKind==='shape'||_selKind==='decor'){ e.preventDefault(); copySel(); } return; }
+    if(meta && e.key.toLowerCase()==='v'){ if(_clip){ e.preventDefault(); pasteClip(); } return; }
     if(meta && e.key.toLowerCase()==='d'){ if(_selKind==='multi'){ e.preventDefault(); dupMulti(); } else if(_selKind==='shape'){ e.preventDefault(); shapeDup(); } else if(_selKind==='decor' && _selEl){ e.preventDefault(); duplicateDecor(); } return; }
     if(e.key==='Delete' || e.key==='Backspace'){ if(_selKind==='multi'){ e.preventDefault(); delMulti(); } else if(_selKind==='shape'){ e.preventDefault(); shapeDel(); } else if(_selKind==='decor' && _selEl){ e.preventDefault(); deleteDecor(); } return; }
     if((_selEl || _selKind==='multi') && e.key.indexOf('Arrow')===0){ e.preventDefault(); const s = e.shiftKey ? 10 : 1;
