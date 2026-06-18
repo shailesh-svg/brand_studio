@@ -2124,6 +2124,16 @@ function renderElementsPanel(){
    ============================================================ */
 const AI_MODEL_LS = 'nt-openai-model';   // key lives in .env on the local server, never in the browser
 const aiGetModel = () => { try { return localStorage.getItem(AI_MODEL_LS) || 'gpt-4o-mini'; } catch(e){ return 'gpt-4o-mini'; } };
+// Curated, in order of increasing power/cost. Reasoning ("o*") models think before answering — slower, deeper.
+const AI_MODELS = [
+  ['gpt-4o-mini',  'gpt-4o-mini · fastest, cheapest'],
+  ['gpt-4o',       'gpt-4o · balanced, high quality'],
+  ['gpt-4.1-mini', 'gpt-4.1-mini · fast & sharp'],
+  ['gpt-4.1',      'gpt-4.1 · most capable for copy'],
+  ['o4-mini',      'o4-mini · reasoning (slower, deeper)'],
+  ['o3',           'o3 · deepest reasoning (premium)'],
+];
+const aiIsReasoning = m => /^o\d/.test(m);   // o1/o3/o4-mini etc. — different request params
 
 /* the editable text fields of the current asset (current slide for decks) */
 function aiFields(scope){
@@ -2157,20 +2167,23 @@ async function aiDraft(brief, scope, statusEl, mode){
     ? `Convert the user's draft below into on-brand copy for a ${asset}. Preserve the meaning and substance; rewrite in the brand voice and FIT it onto the fields (split, tighten or expand as needed; respect the budgets). Use only what's in the draft — don't invent facts.\n\nDRAFT:\n${brief || '(no draft provided)'}\n\nFields:\n${spec}`
     : `Brief: ${brief || '(improve and tighten the current copy, on-brand)'}\n\n`
       + `Draft copy for these fields of a ${asset}. Keep the meaning where it makes sense, match the brief, stay on-brand.\nFields:\n${spec}`;
-  statusEl.textContent = mode==='convert' ? 'Converting…' : 'Drafting…';
+  const model = aiGetModel(), reasoning = aiIsReasoning(model);
+  statusEl.textContent = (mode==='convert' ? 'Converting…' : 'Drafting…') + (reasoning ? ' (reasoning — may take longer)' : '');
   try {
+    const body = { model, response_format:{ type:'json_object' },
+      messages:[ {role:'system', content:AI_SYSTEM}, {role:'user', content:user} ] };
+    if(reasoning){ body.max_completion_tokens = 4000; }   // o* models: no temperature, use max_completion_tokens
+    else { body.temperature = 0.7; body.max_tokens = 1000; }
     const res = await fetch('/api/openai', {        // local proxy injects the key from .env
       method:'POST', headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ model: aiGetModel(), temperature:0.7, max_tokens:1000,
-        response_format:{ type:'json_object' },
-        messages:[ {role:'system', content:AI_SYSTEM}, {role:'user', content:user} ] })
+      body: JSON.stringify(body)
     });
     if(res.status===404) throw new Error('AI server not running — start it with: python3 tools/serve.py');
     const data = await res.json();
     if(!res.ok) throw new Error((data && data.error && (data.error.message||data.error)) || ('error '+res.status));
     const obj = JSON.parse(data.choices[0].message.content);
     pushUndo(); const n = aiApply(fields, obj); persist(); renderAll();
-    const u = data.usage||{}; statusEl.textContent = `Applied to ${n} field(s) · ${u.total_tokens||'?'} tokens (${aiGetModel()})`;
+    const u = data.usage||{}; statusEl.textContent = `Applied to ${n} field(s) · ${u.total_tokens||'?'} tokens (${model})`;
     toast('AI draft applied — fine-tune on the canvas');
   } catch(e){ const m = (e && e.message) || String(e);
     statusEl.textContent = /fetch/i.test(m)
@@ -2181,7 +2194,7 @@ async function aiDraft(brief, scope, statusEl, mode){
 function aiOpen(){
   const deck = isDeckKind(state.kind);
   const modelSel = h('select',{onchange:e=>{ try{ localStorage.setItem(AI_MODEL_LS, e.target.value); }catch(_){} }},
-    [['gpt-4o-mini','gpt-4o-mini · cheapest'],['gpt-4o','gpt-4o · higher quality']].map(([v,t])=>h('option',{value:v, selected:v===aiGetModel()?'':null}, t)));
+    AI_MODELS.map(([v,t])=>h('option',{value:v, selected:v===aiGetModel()?'':null}, t)));
   const scopeSel = h('select',{}, [['slide','This slide — fewer tokens'],['all','All slides — more tokens']].map(([v,t])=>h('option',{value:v}, t)));
   const modeSel = h('select',{onchange:()=>{ const c=modeSel.value==='convert';
       lbl.textContent = c ? 'Paste your draft — it’ll be matched to the brand & this layout' : 'Brief — what should this '+KINDS[state.kind].name+' say?';

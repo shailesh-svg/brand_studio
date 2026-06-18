@@ -44,6 +44,12 @@ Token-optimised: defaults to the cheapest model (`gpt-4o-mini`), sends only fiel
 keys + truncated current text, "This slide" scope for decks, and shows the token
 count after each run.
 
+**Pick a higher model** from the **Model** dropdown when you want more power:
+`gpt-4o` and `gpt-4.1` for stronger copy, or the reasoning models `o4-mini` / `o3`
+for the deepest drafting (slower, premium). Your choice is remembered. Reasoning
+models think before answering, so they take longer and cost more tokens — use them
+for hard briefs, keep `gpt-4o-mini` for quick fills.
+
 ## Slide navigator
 Multi-slide assets (carousels, proposals, imported decks) show a **thumbnail strip**
 above the canvas — click a thumbnail to jump to that slide; the active one is
