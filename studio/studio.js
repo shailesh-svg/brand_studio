@@ -797,7 +797,7 @@ function fitStage(){
   _scale = _userZoom != null ? _userZoom : fit;
   $('#stage-scaler').style.transform = `scale(${_scale})`;
   const dims = $('#frame-dims'); if(dims) dims.textContent = `${fr.w} × ${fr.h} · ${Math.round(_scale*100)}%`;
-  positionChrome(); positionMulti();
+  positionChrome(); positionMulti(); positionShapeMulti();
 }
 function setZoom(mult){ _userZoom = Math.max(0.1, Math.min(4, (_scale||1)*mult)); fitStage(); }
 
@@ -1194,6 +1194,7 @@ const SWATCHES = [
 let _sel = null, _selEl = null, _box = null, _bar = null, _gx = null, _gy = null, _editing = false;
 let _selKind = 'text', _selDecorId = null, _dbar = null;
 let _selShape = null, _sbar = null;   // imported-deck freeform shape editing
+let _smulti = [], _smbar = null;      // multi-select of deck shapes (indices on the active slide)
 
 const ov = () => (state.overrides[state.kind] = state.overrides[state.kind] || {});
 const bindOf = el => el.getAttribute('data-bind');
@@ -1223,7 +1224,8 @@ function editorInitChrome(){
   _dbar = buildDecorToolbar();
   _mbar = buildMultiToolbar();
   _sbar = buildShapeToolbar();
-  document.body.append(_gx, _gy, _box, _bar, _dbar, _mbar, _sbar);
+  _smbar = buildShapeMultiToolbar();
+  document.body.append(_gx, _gy, _box, _bar, _dbar, _mbar, _sbar, _smbar);
 }
 function buildDecorToolbar(){
   const seg = (children)=> h('div',{class:'tb-seg'}, children);
@@ -1287,7 +1289,7 @@ function selectDecor(div){
 function editorDeselect(){
   if(_selEl) _selEl.classList.remove('nt-selected');
   _sel = null; _selEl = null; _selKind = 'text'; _selDecorId = null; _selShape = null;
-  clearMulti();
+  clearMulti(); clearShapeMulti();
   if(_box) _box.style.display = 'none';
   if(_bar) _bar.style.display = 'none';
   if(_dbar) _dbar.style.display = 'none';
@@ -1295,6 +1297,7 @@ function editorDeselect(){
 }
 function editorReselect(){
   if(!_frameEl) return;
+  if(_selKind==='shapemulti' && _smulti.length>1){ markShapeMulti(); _smbar.style.display='flex'; positionShapeMulti(); return; }
   if(_selKind==='shape' && _selShape){
     const sv = _frameEl.querySelector('[data-shape="'+_selShape.i+'.'+_selShape.k+'"]');
     if(sv) selectShape(sv); else editorDeselect();
@@ -1366,7 +1369,10 @@ function onFramePointerDown(e){
   if(isDeckKind(state.kind)){
     const sEl = e.target.closest('[data-shape]');
     if(!sEl){ editorDeselect(); return; }
-    if(sEl !== _selEl) selectShape(sEl);
+    const k = +(sEl.getAttribute('data-shape').split('.')[1]);
+    if(e.shiftKey){ toggleShapeMulti(k); return; }
+    if(_selKind==='shapemulti' && _smulti.includes(k)){ beginShapeGroupDrag(e); return; }
+    clearShapeMulti(); if(sEl !== _selEl) selectShape(sEl);
     beginShapeDrag(e, sEl); return;
   }
   const dc = e.target.closest('.nt-decor');
@@ -1518,6 +1524,10 @@ function alignSelected(where){
   }
 }
 function nudgeSel(dx, dy){
+  if(_selKind==='shapemulti' && _smulti.length){ pushUndo();
+    smultiShapes().forEach(sh=>{ if(sh.lock) return; sh.x+=dx; sh.y+=dy; });
+    _smulti.forEach(k=>{ const el=_frameEl.querySelector('[data-shape="'+state.active+'.'+k+'"]'); const sh=curShapes()[k]; if(el&&sh){ el.style.left=sh.x+'px'; el.style.top=sh.y+'px'; } });
+    positionShapeMulti(); persist(); return; }
   if(_selKind==='shape'){ const sh=shapeObj(); if(!sh) return; pushUndo(); sh.x+=dx; sh.y+=dy;
     if(_selEl){ _selEl.style.left=sh.x+'px'; _selEl.style.top=sh.y+'px'; } positionChrome(); persist(); return; }
   if(_selKind==='multi' && _multi.length){ pushUndo();
@@ -1750,6 +1760,75 @@ function showShortcuts(){
     h('div',{class:'ai-body', style:{gap:'0'}}, rows.map(([a,b])=> h('div',{class:'sc-row'},[ h('span',{class:'sc-k'}, a), h('span',{class:'sc-v'}, b) ]))) ]));
   document.body.appendChild(ov);
 }
+
+/* ---------- multi-select of deck shapes ---------- */
+function buildShapeMultiToolbar(){
+  const seg=(c)=>h('div',{class:'tb-seg'},c);
+  const btn=(t,title,fn,cls)=>h('button',{class:'tb-btn'+(cls?' '+cls:''),title,onclick:fn},t);
+  return h('div',{class:'nt-toolbar', style:{display:'none'}, onpointerdown:e=>e.stopPropagation()},[
+    h('div',{class:'tb-seg tb-count'}, [ h('span',{id:'smulti-count'},'2'), document.createTextNode(' selected') ]),
+    alignSeg(alignShapeMulti),
+    seg([ btn('↔','Distribute horizontally', ()=>distributeShapes('x')), btn('↕','Distribute vertically', ()=>distributeShapes('y')) ]),
+    seg([ btn('⧉','Duplicate', dupShapeMulti), btn('⌫','Delete', delShapeMulti, 'tb-reset') ])
+  ]);
+}
+function curShapes(){ const s = state.data[state.kind].slides[state.active]; return (s && s.shapes) || []; }
+function smultiShapes(){ const a = curShapes(); return _smulti.map(k=>a[k]).filter(Boolean); }
+function markShapeMulti(){ if(!_frameEl) return; _frameEl.querySelectorAll('.nt-shape').forEach(el=>{
+  const k = +((el.getAttribute('data-shape')||'.-1').split('.')[1]); el.classList.toggle('nt-multi', _smulti.includes(k)); }); }
+function clearShapeMulti(){ _smulti=[]; if(_smbar) _smbar.style.display='none';
+  if(_frameEl) _frameEl.querySelectorAll('.nt-shape.nt-multi').forEach(x=>x.classList.remove('nt-multi'));
+  if(_selKind==='shapemulti') _selKind='text'; }
+function enterShapeMulti(){
+  if(_selEl) _selEl.classList.remove('nt-selected'); _selKind='shapemulti'; _selEl=null; _sel=null; _selShape=null; _selDecorId=null;
+  _box.style.display='none'; _bar.style.display='none'; _dbar.style.display='none'; _sbar.style.display='none'; _mbar.style.display='none';
+  markShapeMulti(); _smbar.querySelector('#smulti-count').textContent=String(_smulti.length); _smbar.style.display='flex'; positionShapeMulti();
+}
+function positionShapeMulti(){
+  if(_selKind!=='shapemulti' || !_smulti.length || !_smbar) return;
+  let l=Infinity,t=Infinity,r=-Infinity,b=-Infinity;
+  _smulti.forEach(k=>{ const el=_frameEl.querySelector('[data-shape="'+state.active+'.'+k+'"]'); if(!el) return;
+    const rc=el.getBoundingClientRect(); l=Math.min(l,rc.left); t=Math.min(t,rc.top); r=Math.max(r,rc.right); b=Math.max(b,rc.bottom); });
+  if(l===Infinity) return; const bw=_smbar.offsetWidth||340;
+  const bx=Math.max(8, Math.min(window.innerWidth-bw-8, (l+r)/2-bw/2)); let by=t-_smbar.offsetHeight-10; if(by<8) by=b+10;
+  Object.assign(_smbar.style,{left:bx+'px', top:by+'px'});
+}
+function toggleShapeMulti(k){
+  if(!_smulti.length && _selKind==='shape' && _selShape && _selShape.i===state.active && _selShape.k!==k) _smulti=[_selShape.k];
+  const i=_smulti.indexOf(k); if(i>=0) _smulti.splice(i,1); else _smulti.push(k);
+  if(_smulti.length<=1){ const only = _smulti.length ? _smulti[0] : k; clearShapeMulti();
+    const el=_frameEl.querySelector('[data-shape="'+state.active+'.'+only+'"]'); if(el) selectShape(el); return; }
+  enterShapeMulti();
+}
+function beginShapeGroupDrag(e){
+  const a = curShapes();
+  const items = _smulti.map(k=>({k, sh:a[k]})).filter(o=>o.sh && !o.sh.lock).map(o=>({...o, x0:o.sh.x, y0:o.sh.y}));
+  const sx=e.clientX, sy=e.clientY; let moved=false, pushed=false;
+  const move=(ev)=>{ const ddx=ev.clientX-sx, ddy=ev.clientY-sy; if(!moved && Math.abs(ddx)+Math.abs(ddy)<3) return; moved=true;
+    if(!pushed){ pushUndo(); pushed=true; }
+    items.forEach(o=>{ o.sh.x=Math.round(o.x0+ddx/_scale); o.sh.y=Math.round(o.y0+ddy/_scale);
+      const el=_frameEl.querySelector('[data-shape="'+state.active+'.'+o.k+'"]'); if(el){ el.style.left=o.sh.x+'px'; el.style.top=o.sh.y+'px'; } });
+    positionShapeMulti(); };
+  const up=()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); if(moved) persist(); };
+  window.addEventListener('pointermove',move); window.addEventListener('pointerup',up);
+}
+function alignShapeMulti(where){ const d=state.data[state.kind], m=0.05; pushUndo();
+  smultiShapes().forEach(sh=>{
+    if(where==='left') sh.x=Math.round(d.w*m); if(where==='hcenter') sh.x=Math.round((d.w-sh.w)/2); if(where==='right') sh.x=Math.round(d.w-d.w*m-sh.w);
+    if(where==='top') sh.y=Math.round(d.h*m); if(where==='vcenter') sh.y=Math.round((d.h-sh.h)/2); if(where==='bottom') sh.y=Math.round(d.h-d.h*m-sh.h); });
+  persist(); renderPreview(); }
+function distributeShapes(axis){ const shapes=smultiShapes(); if(shapes.length<3){ toast('Select 3+ to distribute'); return; }
+  pushUndo(); const dim = axis==='x'?'w':'h';
+  const sorted=shapes.slice().sort((a,b)=>(a[axis]+a[dim]/2)-(b[axis]+b[dim]/2));
+  const first=sorted[0], last=sorted[sorted.length-1];
+  const span=(last[axis]+last[dim]/2)-(first[axis]+first[dim]/2), step=span/(sorted.length-1);
+  sorted.forEach((s,i)=>{ s[axis]=Math.round((first[axis]+first[dim]/2)+step*i - s[dim]/2); });
+  persist(); renderPreview(); }
+function dupShapeMulti(){ const shapes=curShapes(); pushUndo();
+  const clones=smultiShapes().map(sh=>{ const c=JSON.parse(JSON.stringify(sh)); c.x+=16; c.y+=16; return c; });
+  const start=shapes.length; clones.forEach(c=>shapes.push(c)); _smulti=clones.map((_,i)=>start+i); persist(); renderPreview(); }
+function delShapeMulti(){ const shapes=curShapes(); pushUndo();
+  _smulti.slice().sort((a,b)=>b-a).forEach(k=>shapes.splice(k,1)); clearShapeMulti(); persist(); renderPreview(); }
 
 /* ---------- safe-area / margin overlay ---------- */
 function safeAreaOverlay(fr){
@@ -2431,8 +2510,8 @@ function boot(){
   $('#zoom-fit').addEventListener('click', ()=>{ _userZoom=null; fitStage(); });
   $('#zoom-in').addEventListener('click', ()=>setZoom(1.2));
   $('#zoom-out').addEventListener('click', ()=>setZoom(1/1.2));
-  window.addEventListener('resize', ()=>{ fitStage(); positionChrome(); positionMulti(); });
-  $('#stage').addEventListener('scroll', ()=>{ positionChrome(); positionMulti(); }, {passive:true});
+  window.addEventListener('resize', ()=>{ fitStage(); positionChrome(); positionMulti(); positionShapeMulti(); });
+  $('#stage').addEventListener('scroll', ()=>{ positionChrome(); positionMulti(); positionShapeMulti(); }, {passive:true});
   document.addEventListener('keydown', (e)=>{
     if(_editing) return;
     const ae = document.activeElement;
@@ -2444,9 +2523,9 @@ function boot(){
     if(e.key==='Escape'){ editorDeselect(); document.querySelectorAll('.nt-ctx').forEach(m=>m.remove()); return; }
     if(meta && e.key.toLowerCase()==='c'){ if(_selKind==='shape'||_selKind==='decor'){ e.preventDefault(); copySel(); } return; }
     if(meta && e.key.toLowerCase()==='v'){ if(_clip){ e.preventDefault(); pasteClip(); } return; }
-    if(meta && e.key.toLowerCase()==='d'){ if(_selKind==='multi'){ e.preventDefault(); dupMulti(); } else if(_selKind==='shape'){ e.preventDefault(); shapeDup(); } else if(_selKind==='decor' && _selEl){ e.preventDefault(); duplicateDecor(); } return; }
-    if(e.key==='Delete' || e.key==='Backspace'){ if(_selKind==='multi'){ e.preventDefault(); delMulti(); } else if(_selKind==='shape'){ e.preventDefault(); shapeDel(); } else if(_selKind==='decor' && _selEl){ e.preventDefault(); deleteDecor(); } return; }
-    if((_selEl || _selKind==='multi') && e.key.indexOf('Arrow')===0){ e.preventDefault(); const s = e.shiftKey ? 10 : 1;
+    if(meta && e.key.toLowerCase()==='d'){ if(_selKind==='shapemulti'){ e.preventDefault(); dupShapeMulti(); } else if(_selKind==='multi'){ e.preventDefault(); dupMulti(); } else if(_selKind==='shape'){ e.preventDefault(); shapeDup(); } else if(_selKind==='decor' && _selEl){ e.preventDefault(); duplicateDecor(); } return; }
+    if(e.key==='Delete' || e.key==='Backspace'){ if(_selKind==='shapemulti'){ e.preventDefault(); delShapeMulti(); } else if(_selKind==='multi'){ e.preventDefault(); delMulti(); } else if(_selKind==='shape'){ e.preventDefault(); shapeDel(); } else if(_selKind==='decor' && _selEl){ e.preventDefault(); deleteDecor(); } return; }
+    if((_selEl || _selKind==='multi' || _selKind==='shapemulti') && e.key.indexOf('Arrow')===0){ e.preventDefault(); const s = e.shiftKey ? 10 : 1;
       if(e.key==='ArrowLeft') nudgeSel(-s,0); else if(e.key==='ArrowRight') nudgeSel(s,0);
       else if(e.key==='ArrowUp') nudgeSel(0,-s); else if(e.key==='ArrowDown') nudgeSel(0,s); }
   });

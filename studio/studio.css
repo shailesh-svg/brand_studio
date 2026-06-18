@@ -379,6 +379,7 @@ body { background: var(--gray-50); overflow: hidden; }
 .nt-frame .nt-shape { transition: box-shadow 120ms var(--ease); }
 .nt-frame .nt-shape:hover { box-shadow: 0 0 0 2px rgba(0,71,171,0.45); }
 .nt-frame .nt-shape.nt-selected { box-shadow: 0 0 0 2px var(--cobalt); }
+.nt-frame .nt-shape.nt-multi { box-shadow: 0 0 0 2px var(--cyan); }
 .tb-count { color: rgba(255,255,255,0.8); font-size: 12px; font-weight: 500; padding: 0 8px; }
 .tb-count #multi-count { color: #fff; font-weight: 600; }
 .tb-contrast { align-items: center; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: var(--radius-full); }
