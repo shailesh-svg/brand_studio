@@ -22,7 +22,26 @@ Recommended browser: **Chrome or Edge** (best export fidelity). Works in Safari/
 
 ---
 
+## Import any asset (top bar → Import)
+Click **Import** to bring an external asset in as a **new, fully-editable canvas**:
+- **Image** (PNG/JPG/SVG) → a canvas with the image placed; add text/elements on top.
+- **PDF** → each page rendered to an editable slide.
+- **PowerPoint (.pptx)** → parsed **shape-by-shape** (text boxes, images, rectangles,
+  colors, groups) into the editable deck — not a flat picture. Complex/edge-case
+  decks may need `python tools/build_imported.py` for a perfect result.
+- **Library JSON** → merges saved assets back in (the old backup format).
+
+Once imported it behaves like any deck: click to edit, drag, resize, recolor,
+export, or **★ Save current** to keep it in your Library.
+
 ## Draft with AI (optional)
+**New — Generate from a reference + storyboard:** in the AI panel pick mode
+**“Generate from reference + storyboard”**, choose a **Reference** (an approved asset
+from the dropdown, and/or **Attach image** of a design you like), write a short
+**storyboard** of what each section should cover, pick a capable model (e.g.
+`gpt-4o` / `gpt-5.5`), and it writes a **near-complete on-brand draft** onto every
+field — matching the reference's structure and density. Then fine-tune on the canvas.
+
 **Draft with AI** (top-right) is an opt-in helper — off unless you use it, so no
 tokens are spent otherwise. Two modes:
 - **Draft from a brief** — say what it should say; it writes on-brand copy.

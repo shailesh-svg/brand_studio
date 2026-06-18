@@ -2164,19 +2164,46 @@ function aiApply(fields, obj){ let n=0; fields.forEach(f=>{ const v=obj[f.key]; 
 
 const AI_SYSTEM = "You are Newtuple's brand copywriter. Voice: calm authority — a practitioner, not a vendor. Active voice; precise technical vocabulary (ReAct, multi-agent orchestration, observability, agentic RAG) used correctly; outcome-led and quantified; short declarative sentences. Sentence case for headings/body; UPPERCASE only for short kicker/eyebrow labels. Product names: Dialogtuple, Gaugetuple. NO emoji ever. Respect each field's character budget. Return ONLY a JSON object mapping each given field key to its new text — include only keys you are changing.";
 
-async function aiDraft(brief, scope, statusEl, mode){
+/* pull plain reference text out of any asset (decks → text shapes; others → all strings) */
+function assetRefText(kind, data){
+  if(!data) return '';
+  if((data.slides)){ return data.slides.map(s=>(s.shapes||[]).filter(x=>x.t==='text'&&x.tx).map(x=>x.tx.orig).join('\n')).join('\n— — —\n').slice(0,6000); }
+  const parts=[]; (function walk(o){ if(typeof o==='string'){ if(o.trim()) parts.push(o.trim()); }
+    else if(Array.isArray(o)) o.forEach(walk); else if(o&&typeof o==='object') Object.values(o).forEach(walk); })(data);
+  return parts.join('\n').slice(0,6000);
+}
+
+async function aiDraft(brief, scope, statusEl, mode, ref){
   const fields = aiFields(scope); if(!fields.length){ statusEl.textContent = 'No editable text here to draft.'; return; }
   const spec = fields.map(f=>`- ${f.key} (≤${f.max} chars; current: "${f.cur.slice(0,90)}")`).join('\n');
   const asset = (B.product ? '' : '') + (KINDS[state.kind].name);
-  const user = mode==='convert'
-    ? `Convert the user's draft below into on-brand copy for a ${asset}. Preserve the meaning and substance; rewrite in the brand voice and FIT it onto the fields (split, tighten or expand as needed; respect the budgets). Use only what's in the draft — don't invent facts.\n\nDRAFT:\n${brief || '(no draft provided)'}\n\nFields:\n${spec}`
-    : `Brief: ${brief || '(improve and tighten the current copy, on-brand)'}\n\n`
+  const hasImg = ref && ref.image, hasRefTxt = ref && ref.text && ref.text.trim();
+  let user;
+  if(mode==='generate'){
+    user = `Produce a COMPLETE, ready-to-use draft for a ${asset} in Newtuple's brand voice. `
+      + `Fill EVERY field below with finished copy (no placeholders, no "TBD") — aim for 100% done so it needs only light human polish.\n`
+      + (hasRefTxt ? `Use the REFERENCE ASSET as the model for structure, depth, tone and information density.\n` : '')
+      + (hasImg ? `A reference image is attached — match its layout logic, hierarchy and density; read any copy in it for cues.\n` : '')
+      + `Follow the STORYBOARD for what each section must cover; expand it into full, specific, on-brand copy.\n\n`
+      + `STORYBOARD:\n${brief || '(no storyboard — infer a strong, specific narrative from the reference)'}\n`
+      + (hasRefTxt ? `\nREFERENCE ASSET CONTENT:\n${ref.text}\n` : '')
+      + `\nFields:\n${spec}`;
+  } else if(mode==='convert'){
+    user = `Convert the user's draft below into on-brand copy for a ${asset}. Preserve the meaning and substance; rewrite in the brand voice and FIT it onto the fields (split, tighten or expand as needed; respect the budgets). Use only what's in the draft — don't invent facts.`
+      + (hasRefTxt ? `\n\nMatch the style of this REFERENCE ASSET:\n${ref.text}` : '')
+      + `\n\nDRAFT:\n${brief || '(no draft provided)'}\n\nFields:\n${spec}`;
+  } else {
+    user = `Brief: ${brief || '(improve and tighten the current copy, on-brand)'}\n\n`
+      + (hasRefTxt ? `Match the style of this REFERENCE ASSET:\n${ref.text}\n\n` : '')
       + `Draft copy for these fields of a ${asset}. Keep the meaning where it makes sense, match the brief, stay on-brand.\nFields:\n${spec}`;
+  }
   const model = aiGetModel(), reasoning = aiIsReasoning(model);
-  statusEl.textContent = (mode==='convert' ? 'Converting…' : 'Drafting…') + (reasoning ? ' (reasoning — may take longer)' : '');
+  const verb = mode==='generate' ? 'Generating' : mode==='convert' ? 'Converting' : 'Drafting';
+  statusEl.textContent = verb+'…' + (reasoning ? ' (reasoning — may take longer)' : '') + (hasImg ? ' (reading image)' : '');
   try {
+    const userContent = hasImg ? [ {type:'text', text:user}, {type:'image_url', image_url:{ url:ref.image }} ] : user;
     const body = { model, response_format:{ type:'json_object' },
-      messages:[ {role:'system', content:AI_SYSTEM}, {role:'user', content:user} ] };
+      messages:[ {role:'system', content:AI_SYSTEM}, {role:'user', content:userContent} ] };
     // size the output budget to the field count; reasoning/GPT-5 need extra headroom for hidden thinking
     if(reasoning){ body.max_completion_tokens = Math.min(16000, 2500 + fields.length*220); }  // no temperature, use max_completion_tokens
     else { body.temperature = 0.7; body.max_tokens = Math.min(4000, 500 + fields.length*70); }
@@ -2208,30 +2235,64 @@ async function aiDraft(brief, scope, statusEl, mode){
 
 function aiOpen(){
   const deck = isDeckKind(state.kind);
+  const ref = { image:null, text:null, label:'' };   // reference: vision image and/or text
   const modelSel = h('select',{onchange:e=>{ try{ localStorage.setItem(AI_MODEL_LS, e.target.value); }catch(_){} }},
     AI_MODELS.map(([v,t])=>h('option',{value:v, selected:v===aiGetModel()?'':null}, t)));
   const scopeSel = h('select',{}, [['slide','This slide — fewer tokens'],['all','All slides — more tokens']].map(([v,t])=>h('option',{value:v}, t)));
-  const modeSel = h('select',{onchange:()=>{ const c=modeSel.value==='convert';
-      lbl.textContent = c ? 'Paste your draft — it’ll be matched to the brand & this layout' : 'Brief — what should this '+KINDS[state.kind].name+' say?';
-      brief.placeholder = c ? 'Paste your existing copy / rough draft here…' : 'e.g. A carousel on our 5 delivery principles — end with a question.';
-      btn.textContent = c ? 'Convert → fill fields' : 'Draft → fill fields'; }},
-    [['brief','Draft from a brief'],['convert','Convert my draft (match the style)']].map(([v,t])=>h('option',{value:v}, t)));
-  const brief = h('textarea',{rows:4, placeholder:'e.g. A carousel on our 5 delivery principles — end with a question.'});
-  const lbl = h('label',{}, 'Brief — what should this '+KINDS[state.kind].name+' say?');
+  const modeSel = h('select',{onchange:()=>syncMode()},
+    [['generate','Generate from reference + storyboard'],['brief','Draft from a brief'],['convert','Convert my draft (match the style)']].map(([v,t])=>h('option',{value:v}, t)));
+  const brief = h('textarea',{rows:4});
+  const lbl = h('label',{}, '');
   const status = h('div',{class:'ai-status'});
-  const btn = h('button',{class:'exp-btn primary', style:{flex:'0 0 auto', minWidth:'150px'},
-    onclick:()=>aiDraft(brief.value.trim(), deck?scopeSel.value:'slide', status, modeSel.value)}, 'Draft → fill fields');
+  const btn = h('button',{class:'exp-btn primary', style:{flex:'0 0 auto', minWidth:'160px'},
+    onclick:()=>aiDraft(brief.value.trim(), deck?scopeSel.value:'slide', status, modeSel.value, ref)}, '');
+
+  /* ---- reference: attach an image (vision) or pick an existing approved asset (text) ---- */
+  const refInfo = h('span',{class:'ai-ref-info nt-mono', style:{fontSize:'12px', opacity:'.8'}}, 'No reference');
+  const clearRef = ()=>{ ref.image=null; ref.text=null; ref.label=''; refInfo.textContent='No reference'; };
+  const refFile = h('input',{type:'file', accept:'image/*', style:{display:'none'},
+    onchange:e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
+      rd.onload=()=>{ ref.image=rd.result; ref.label=f.name; refInfo.textContent='📎 '+f.name+(ref.text?' + asset':''); }; rd.readAsDataURL(f); e.target.value=''; }});
+  const refOpts = [['','— pick an approved asset —']];
+  const imp = window.NT_IMPORTED||{}; Object.keys(imp).forEach(k=> refOpts.push(['imp:'+k, '★ '+(imp[k].name||k)]));
+  (typeof library!=='undefined'?library:[]).forEach(e=> refOpts.push(['lib:'+e.id, e.name+' · '+KINDS[e.kind].name]));
+  const refSel = h('select',{onchange:e=>{ const v=e.target.value;
+      if(!v){ ref.text=null; ref.label=ref.image?ref.label:''; refInfo.textContent = ref.image?('📎 '+ref.label):'No reference'; return; }
+      let d=null, nm=v;
+      if(v.indexOf('imp:')===0){ d=imp[v.slice(4)]; nm=(d&&d.name)||v.slice(4); }
+      else if(v.indexOf('lib:')===0){ const it=library.find(x=>x.id===v.slice(4)); if(it){ d=it.data; nm=it.name; } }
+      ref.text = d ? assetRefText(null, d) : null;
+      refInfo.textContent = (ref.image?'📎 '+ref.label+' + ':'') + '“'+nm+'” (text)'; }},
+    refOpts.map(([v,t])=>h('option',{value:v}, t)));
+
+  function syncMode(){ const m=modeSel.value;
+    if(m==='generate'){ lbl.textContent='Storyboard — outline what each section should cover';
+      brief.placeholder='e.g. Slide 1: hook on why eval matters. Slides 2–4: our 3-step method with a metric each. Slide 5: CTA to book a pilot.';
+      btn.textContent='Generate full draft'; }
+    else if(m==='convert'){ lbl.textContent='Paste your draft — it’ll be matched to the brand & this layout';
+      brief.placeholder='Paste your existing copy / rough draft here…'; btn.textContent='Convert → fill fields'; }
+    else { lbl.textContent='Brief — what should this '+KINDS[state.kind].name+' say?';
+      brief.placeholder='e.g. A carousel on our 5 delivery principles — end with a question.'; btn.textContent='Draft → fill fields'; }
+  }
+  syncMode();
+
   const ov = h('div',{class:'lib-lightbox', onclick:e=>{ if(e.target===ov) ov.remove(); }});
   ov.appendChild(h('div',{class:'ai-card'},[
     h('div',{class:'bc-head'},[ h('div',{class:'bc-title'}, '✨ Draft with AI'), h('button',{class:'ghost-btn', onclick:()=>ov.remove()}, 'Close ✕') ]),
     h('div',{class:'ai-body'},[
       h('div',{class:'field'},[ h('label',{},'Mode'), modeSel ]),
+      h('div',{class:'field'},[
+        h('label',{},'Reference (optional) — match an approved asset or an attached image'),
+        h('div',{style:{display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap'}},[
+          refSel, h('button',{class:'ghost-btn', onclick:()=>refFile.click()}, 'Attach image'),
+          h('button',{class:'ghost-btn', onclick:()=>{ refSel.value=''; clearRef(); }}, 'Clear'), refInfo ]) ]),
       h('div',{class:'field'},[ lbl, brief ]),
       h('div',{style:{display:'flex', gap:'10px'}},[
         h('div',{class:'field', style:{flex:'1'}},[ h('label',{},'Model'), modelSel ]),
         deck ? h('div',{class:'field', style:{flex:'1'}},[ h('label',{},'Scope'), scopeSel ]) : null ]),
       h('div',{style:{display:'flex', alignItems:'center', gap:'12px'}},[ btn, status ]),
-      h('div',{class:'ai-note'}, 'Uses your OpenAI key from .env — never sent to the browser. Run the Studio with python3 tools/serve.py (not file://) so /api/openai is available. Drafts/converts the editable text; fine-tune on the canvas (⌘Z to undo). Off unless you use it.')
+      h('div',{class:'ai-note'}, 'Give it a reference (an approved asset or an image) + a storyboard, and a vision model writes a near-complete on-brand draft onto the editable fields. Uses your OpenAI key from .env — never sent to the browser; run with python3 tools/serve.py. Fine-tune on the canvas (⌘Z to undo).'),
+      refFile
     ]) ]));
   document.body.appendChild(ov);
 }
@@ -2360,6 +2421,243 @@ function renameEntry(e){ const nm=prompt('Rename asset:', e.name); if(nm==null) 
 function deleteEntry(e){ if(!confirm('Delete “'+e.name+'” from the library?')) return;
   library = library.filter(x=>x.id!==e.id); libPersist(); refreshGallery(); }
 
+/* ============================================================
+   IMPORT ANY ASSET → a new, fully-editable canvas
+   Images & PDFs become image-backed slides; PowerPoint is parsed
+   shape-by-shape (text/images/rects) into the same editable deck model
+   used by tools/build_imported.py. Library JSON keeps its old behaviour.
+   ============================================================ */
+function importAnyFile(file){
+  if(!file) return;
+  const n = (file.name||'').toLowerCase();
+  if(n.endsWith('.json'))  return importLibrary(file);
+  if(n.endsWith('.pptx'))  return importPptxAsset(file);
+  if(n.endsWith('.pdf'))   return importPdfAsset(file);
+  if((file.type && file.type.indexOf('image/')===0) || /\.(png|jpe?g|gif|webp|svg|bmp)$/.test(n)) return importImageAsset(file);
+  toast('Unsupported file: '+(file.name||'')+' — use an image, PDF, .pptx or library .json', true);
+}
+function importDeckIntoStudio(deck){
+  if(!deck || !deck.slides || !deck.slides.length){ toast('Nothing to import from that file', true); return; }
+  loadAsset('imported', 'light', deck);
+}
+
+/* ---- images ---- */
+function importImageAsset(file){
+  const rd = new FileReader();
+  rd.onload = ()=>{ const img = new Image();
+    img.onload = ()=>{ let w = img.naturalWidth||img.width||1080, h = img.naturalHeight||img.height||1080;
+      const MAX = 1600, s = Math.min(1, MAX/Math.max(w,h)); w = Math.round(w*s); h = Math.round(h*s);
+      importDeckIntoStudio({ w, h, name:file.name, slides:[{ bg:'#FFFFFF', shapes:[{ t:'img', x:0, y:0, w, h, src:rd.result }] }] });
+      toast('Image imported — add text, or let “Draft with AI” build on it'); };
+    img.onerror = ()=>toast('Could not read that image', true);
+    img.src = rd.result; };
+  rd.onerror = ()=>toast('Could not read file', true);
+  rd.readAsDataURL(file);
+}
+
+/* ---- PDF (render each page → image slide) ---- */
+async function importPdfAsset(file){
+  if(!window.pdfjsLib){ toast('PDF engine still loading — try again in a moment', true); return; }
+  try {
+    toast('Rendering PDF…');
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const slides = []; let W = 0, H = 0; const RS = 2;   // 2× for crisp text
+    for(let i=1; i<=pdf.numPages; i++){
+      const page = await pdf.getPage(i);
+      const vp1 = page.getViewport({ scale:1 }), vp = page.getViewport({ scale:RS });
+      const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+      await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+      const w = Math.round(vp1.width), h = Math.round(vp1.height); if(i===1){ W=w; H=h; }
+      slides.push({ bg:'#FFFFFF', shapes:[{ t:'img', x:0, y:0, w, h, src: cv.toDataURL('image/jpeg', 0.92) }] });
+    }
+    importDeckIntoStudio({ w:W, h:H, name:file.name, slides });
+    toast('Imported '+pdf.numPages+'-page PDF — every page is editable');
+  } catch(e){ toast('PDF import failed: '+(e.message||e), true); }
+}
+
+/* ---- PowerPoint (.pptx) → editable shapes (in-browser port of build_imported.py) ---- */
+const PPTX = (()=>{
+  const A='http://schemas.openxmlformats.org/drawingml/2006/main',
+        R='http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+        EMU=9525, PT=96/72;
+  const px = v => Math.round(v/EMU);
+  const MIME = {png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',bmp:'image/bmp',svg:'image/svg+xml',webp:'image/webp'};
+  const child = (el,ln)=>{ if(!el) return null; for(const c of el.children) if(c.localName===ln) return c; return null; };
+  const kids  = (el,ln)=>{ const o=[]; if(el) for(const c of el.children) if(c.localName===ln) o.push(c); return o; };
+  const hex2 = h=>{ h=h.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; };
+  const toHex = (r,g,b)=>'#'+[r,g,b].map(x=>Math.max(0,Math.min(255,Math.round(x))).toString(16).padStart(2,'0')).join('');
+  let THEME = {};   // name → hex
+  function shade(hex, node){
+    const lm=child(node,'lumMod'), lo=child(node,'lumOff'); if(!lm&&!lo) return hex;
+    let [r,g,b]=hex2(hex); const mod=lm?+lm.getAttribute('val')/100000:1, off=lo?+lo.getAttribute('val')/100000:0;
+    return toHex(r*mod+255*off, g*mod+255*off, b*mod+255*off);
+  }
+  function themeColor(name){
+    const map={tx1:'dk1',bg1:'lt1',tx2:'dk2',bg2:'lt2'}; return THEME[map[name]||name]||null;
+  }
+  function colorOfFill(sf){   // sf is a node containing srgbClr/schemeClr/sysClr
+    if(!sf) return null;
+    const sr=child(sf,'srgbClr'); if(sr) return shade('#'+sr.getAttribute('val'), sr);
+    const sc=child(sf,'schemeClr'); if(sc){ const b=themeColor(sc.getAttribute('val')); return b?shade(b,sc):null; }
+    const sy=child(sf,'sysClr'); if(sy && sy.getAttribute('lastClr')) return '#'+sy.getAttribute('lastClr');
+    return null;
+  }
+  const solidHex = parent => parent ? colorOfFill(child(parent,'solidFill')) : null;
+  function fillCss(spPr){
+    if(!spPr) return null;
+    if(child(spPr,'noFill')) return null;
+    const sf=child(spPr,'solidFill'); if(sf) return colorOfFill(sf);
+    const gf=child(spPr,'gradFill'); if(gf){ const lst=child(gf,'gsLst');
+      if(lst){ const cols=kids(lst,'gs').map(colorOfFill).filter(Boolean);
+        if(cols.length>=2) return 'linear-gradient(135deg,'+cols[0]+','+cols[cols.length-1]+')';
+        if(cols.length===1) return cols[0]; } }
+    return null;
+  }
+  function getXfrm(el){
+    const sp = child(el,'spPr')||child(el,'grpSpPr');
+    let xf = sp ? child(sp,'xfrm') : null;
+    if(!xf){ const all = el.getElementsByTagNameNS(A,'xfrm'); xf = all.length?all[0]:null; }
+    if(!xf) return null;
+    const off=child(xf,'off'), ext=child(xf,'ext'); if(!off||!ext) return null;
+    const r={ x:+off.getAttribute('x'), y:+off.getAttribute('y'), cx:+ext.getAttribute('cx'), cy:+ext.getAttribute('cy'),
+      rot: xf.getAttribute('rot') ? Math.round(+xf.getAttribute('rot')/60000) : 0 };
+    const co=child(xf,'chOff'), ce=child(xf,'chExt');
+    if(co){ r.chx=+co.getAttribute('x'); r.chy=+co.getAttribute('y'); }
+    if(ce){ r.ccx=+ce.getAttribute('cx'); r.ccy=+ce.getAttribute('cy'); }
+    return r;
+  }
+  const Ctx = (ox=0,oy=0,sx=1,sy=1,cox=0,coy=0)=>({ sx, sy,
+    X:x=>ox+(x-cox)*sx, Y:y=>oy+(y-coy)*sy, W:w=>w*sx, H:h=>h*sy });
+  function parsePara(p){
+    const pPr=child(p,'pPr'); const algn=(pPr&&pPr.getAttribute('algn'))||'l';
+    const a={l:'left',ctr:'center',r:'right',just:'justify'}[algn]||'left';
+    let lh=null, mt=0, mb=0, bu=null;
+    if(pPr){ const ln=child(pPr,'lnSpc');
+      if(ln){ const pc=child(ln,'spcPct'), pts=child(ln,'spcPts');
+        if(pc) lh=Math.round(+pc.getAttribute('val')/1000)/100; else if(pts) lh=px(+pts.getAttribute('val')*127)+'px'; }
+      const sa=child(pPr,'spcAft'), sb=child(pPr,'spcBef');
+      if(sa&&child(sa,'spcPts')) mb=Math.round(+child(sa,'spcPts').getAttribute('val')/100*PT*10)/10;
+      if(sb&&child(sb,'spcPts')) mt=Math.round(+child(sb,'spcPts').getAttribute('val')/100*PT*10)/10;
+      const bc=child(pPr,'buChar'); if(bc) bu=bc.getAttribute('char')||'•';
+    }
+    const runs=[];
+    for(const node of p.children){
+      if(node.localName==='r'){
+        const rPr=child(node,'rPr'), t=child(node,'t'); const s=(t&&t.textContent)||''; if(!s) continue;
+        const run={s}; if(rPr){
+          if(rPr.getAttribute('sz')) run.fs=Math.round(+rPr.getAttribute('sz')/100*PT*10)/10;
+          if(rPr.getAttribute('b')==='1') run.b=1;
+          if(rPr.getAttribute('i')==='1') run.i=1;
+          const u=rPr.getAttribute('u'); if(u&&u!=='none') run.u=1;
+          if(rPr.getAttribute('spc')) run.sp=Math.round(+rPr.getAttribute('spc')/100*PT*100)/100;
+          const col=solidHex(rPr); if(col) run.col=col;
+        }
+        runs.push(run);
+      } else if(node.localName==='br') runs.push({br:1});
+    }
+    return {a, lh, mt, mb, bu, runs};
+  }
+  function parseText(sp){
+    const tb=child(sp,'txBody'); if(!tb) return null;
+    const bp=child(tb,'bodyPr'); const anchor=(bp&&bp.getAttribute('anchor'))||'t';
+    const ins=(attr,dv)=>{ const v=bp&&bp.getAttribute(attr); return v!=null?px(+v):dv; };
+    const pads=[ins('tIns',2),ins('rIns',2),ins('bIns',2),ins('lIns',2)];
+    let fscale=1; const na=bp?child(bp,'normAutofit'):null;
+    if(na&&na.getAttribute('fontScale')) fscale=Math.round(+na.getAttribute('fontScale')/1000)/100;
+    const paras=kids(tb,'p').map(parsePara);
+    const orig=paras.map(pa=>pa.runs.map(r=>r.s||'').join('')).join('');
+    if(!orig.trim()) return null;
+    return {anchor, pads, fscale, paras, orig};
+  }
+  function parseShape(el){
+    const xf=getXfrm(el); if(!xf) return null;
+    const spPr=child(el,'spPr');
+    const sh={ x:px(el._ctx.X(xf.x)), y:px(el._ctx.Y(xf.y)),
+      w:px(el._ctx.W(xf.cx)), h:px(el._ctx.H(xf.cy)) };
+    if(xf.rot) sh.rot=xf.rot;
+    const fill=fillCss(spPr); if(fill) sh.fill=fill;
+    const geom=spPr?child(spPr,'prstGeom'):null;
+    if(geom){ const p=geom.getAttribute('prst'); if(p==='roundRect') sh.r=10; else if(p==='ellipse') sh.r=9999; }
+    if(spPr){ const ln=child(spPr,'ln'); if(ln && !child(ln,'noFill')){ const lc=solidHex(ln);
+      if(lc) sh.bd=[ln.getAttribute('w')?px(+ln.getAttribute('w')):1, lc]; } }
+    const tx=child(el,'txBody')?parseText(el):null;
+    sh.t = tx ? 'text' : 'rect'; if(tx) sh.tx=tx;
+    return sh;
+  }
+  function parsePic(el, media){
+    const xf=getXfrm(el); if(!xf) return null;
+    const blip=el.getElementsByTagNameNS(A,'blip')[0]; let src='';
+    if(blip){ const rid=blip.getAttributeNS(R,'embed')||blip.getAttribute('r:embed'); if(rid&&media[rid]) src=media[rid]; }
+    if(!src) return null;
+    return { t:'img', src, x:px(el._ctx.X(xf.x)), y:px(el._ctx.Y(xf.y)),
+      w:px(el._ctx.W(xf.cx)), h:px(el._ctx.H(xf.cy)) };
+  }
+  function walk(parent, ctx, media, out){
+    for(const el of parent.children){
+      const t=el.localName;
+      if(t==='sp'||t==='cxnSp'){ el._ctx=ctx; const s=parseShape(el); if(s) out.push(s); }
+      else if(t==='pic'){ el._ctx=ctx; const s=parsePic(el, media); if(s) out.push(s); }
+      else if(t==='grpSp'){ const xf=getXfrm(el); if(!xf) continue;
+        el._ctx=ctx;
+        const sx = xf.ccx ? ctx.W(xf.cx)/xf.ccx : ctx.sx, sy = xf.ccy ? ctx.H(xf.cy)/xf.ccy : ctx.sy;
+        walk(el, Ctx(ctx.X(xf.x), ctx.Y(xf.y), sx, sy, xf.chx||0, xf.chy||0), media, out); }
+    }
+  }
+  async function loadTheme(zip){
+    THEME={}; const f=zip.file('ppt/theme/theme1.xml'); if(!f) return;
+    const doc=new DOMParser().parseFromString(await f.async('string'),'application/xml');
+    const cs=doc.getElementsByTagNameNS(A,'clrScheme')[0]; if(!cs) return;
+    for(const el of cs.children){ const c=colorOfFill(el); if(c) THEME[el.localName]=c; }
+  }
+  async function loadMedia(zip, base){
+    const rels=zip.file('ppt/slides/_rels/'+base+'.rels'); if(!rels) return {};
+    const doc=new DOMParser().parseFromString(await rels.async('string'),'application/xml');
+    const out={};
+    for(const rel of doc.getElementsByTagName('Relationship')){
+      if((rel.getAttribute('Type')||'').indexOf('image')<0) continue;
+      let p=rel.getAttribute('Target')||''; p=p.replace(/^\.\.\//,'ppt/').replace(/^\//,'');
+      if(p.indexOf('ppt/')!==0) p='ppt/'+p.replace(/^ppt\//,'');
+      const ext=(p.split('.').pop()||'').toLowerCase(), mime=MIME[ext]; if(!mime) continue;   // skip emf/wmf etc.
+      const mf=zip.file(p); if(!mf) continue;
+      out[rel.getAttribute('Id')]='data:'+mime+';base64,'+await mf.async('base64');
+    }
+    return out;
+  }
+  async function parse(arrayBuffer){
+    const zip=await JSZip.loadAsync(arrayBuffer);
+    await loadTheme(zip);
+    const pres=new DOMParser().parseFromString(await zip.file('ppt/presentation.xml').async('string'),'application/xml');
+    const sz=pres.getElementsByTagNameNS('http://schemas.openxmlformats.org/presentationml/2006/main','sldSz')[0];
+    const W=px(+sz.getAttribute('cx')), H=px(+sz.getAttribute('cy'));
+    const files=Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+\.xml$/.test(n))
+      .sort((a,b)=>(+a.match(/(\d+)/)[1])-(+b.match(/(\d+)/)[1]));
+    const slides=[];
+    for(const sf of files){
+      const base=sf.split('/').pop();
+      const media=await loadMedia(zip, base);
+      const doc=new DOMParser().parseFromString(await zip.file(sf).async('string'),'application/xml');
+      const spTree=doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/presentationml/2006/main','spTree')[0];
+      const shapes=[]; if(spTree) walk(spTree, Ctx(), media, shapes);
+      const bgPr=doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/presentationml/2006/main','bgPr')[0];
+      slides.push({ bg: bgPr?fillCss(bgPr):null, shapes });
+    }
+    return { w:W, h:H, slides };
+  }
+  return { parse };
+})();
+async function importPptxAsset(file){
+  if(!window.JSZip){ toast('Zip engine still loading — try again in a moment', true); return; }
+  try {
+    toast('Reading PowerPoint…');
+    const deck = await PPTX.parse(await file.arrayBuffer());
+    deck.name = file.name;
+    const nShapes = deck.slides.reduce((a,s)=>a+s.shapes.length,0);
+    importDeckIntoStudio(deck);
+    toast('Imported '+deck.slides.length+' slide(s) · '+nShapes+' editable elements');
+  } catch(e){ toast('PowerPoint import failed: '+(e.message||e)+' — for complex decks use tools/build_imported.py', true); }
+}
+
 /* ---------- import / export ---------- */
 function exportLibrary(){
   if(!library.length){ toast('Library is empty', true); return; }
@@ -2473,8 +2771,8 @@ function previewRef(ref){
 }
 function buildGallery(){
   const overlay = h('div',{class:'lib-overlay', style:{display:'none'}, onclick:e=>{ if(e.target===overlay) closeGallery(); }});
-  const fileInput = h('input',{type:'file', accept:'.json,application/json', style:{display:'none'},
-    onchange:e=>{ if(e.target.files[0]) importLibrary(e.target.files[0]); e.target.value=''; }});
+  const fileInput = h('input',{type:'file', accept:'.json,.pptx,.pdf,image/*', style:{display:'none'},
+    onchange:e=>{ if(e.target.files[0]){ closeGallery(); importAnyFile(e.target.files[0]); } e.target.value=''; }});
   overlay.appendChild(h('div',{class:'lib-panel'},[
     h('div',{class:'lib-head'},[
       h('div',{class:'lib-title'},[ h('span',{class:'lib-title-main'},'Brand library'),
@@ -2573,6 +2871,12 @@ function boot(){
   buildStageControls();
   $('#library-open').addEventListener('click', openGallery);
   $('#ai-open').addEventListener('click', aiOpen);
+  // Import any asset (image / PDF / PowerPoint / library JSON) → editable canvas
+  if(window.pdfjsLib) try { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch(_){}
+  const importInput = h('input',{type:'file', accept:'.json,.pptx,.pdf,image/*', style:{display:'none'},
+    onchange:e=>{ if(e.target.files[0]) importAnyFile(e.target.files[0]); e.target.value=''; }});
+  document.body.appendChild(importInput);
+  $('#import-open').addEventListener('click', ()=>importInput.click());
   /* optional deep-link: ?kind=onepager&theme=light */
   const q = new URLSearchParams(location.search);
   if(q.get('kind') && KINDS[q.get('kind')]) state.kind = q.get('kind');
