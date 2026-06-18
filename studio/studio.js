@@ -2579,25 +2579,74 @@ const PPTX = (()=>{
     const fill=fillCss(spPr); if(fill) sh.fill=fill;
     const geom=spPr?child(spPr,'prstGeom'):null;
     if(geom){ const p=geom.getAttribute('prst'); if(p==='roundRect') sh.r=10; else if(p==='ellipse') sh.r=9999; }
-    if(spPr){ const ln=child(spPr,'ln'); if(ln && !child(ln,'noFill')){ const lc=solidHex(ln);
-      if(lc) sh.bd=[ln.getAttribute('w')?px(+ln.getAttribute('w')):1, lc]; } }
+    const lnEl = spPr?child(spPr,'ln'):null;
+    if(lnEl && !child(lnEl,'noFill')){ const lc=solidHex(lnEl);
+      if(lc) sh.bd=[lnEl.getAttribute('w')?px(+lnEl.getAttribute('w')):1, lc]; }
+    // connectors/lines → render as a crisp filled rule, not a 4-sided border box
+    if(el._conn && (sh.w<=2 || sh.h<=2)){
+      const lc = (lnEl && solidHex(lnEl)) || (sh.bd && sh.bd[1]) || '#9AA6B8';
+      const sw = lnEl && lnEl.getAttribute('w') ? Math.max(1, px(+lnEl.getAttribute('w'))) : 1;
+      if(sh.h<=sh.w) sh.h=sw; else sh.w=sw;
+      sh.fill=lc; delete sh.bd; sh.t='rect'; return sh;
+    }
     const tx=child(el,'txBody')?parseText(el):null;
     sh.t = tx ? 'text' : 'rect'; if(tx) sh.tx=tx;
     return sh;
   }
+  function placeholder(out, x, y, w, h, label){
+    out.push({ t:'rect', x, y, w, h, fill:'#F4F6FA', bd:[1,'#C7D0DE'], r:6 });
+    if(label) out.push({ t:'text', x, y:y+Math.max(0,Math.round(h/2)-13), w, h:26,
+      tx:{ anchor:'ctr', pads:[2,8,2,8], fscale:1,
+        paras:[{a:'center',lh:1.2,mt:0,mb:0,bu:null,runs:[{s:label, fs:13, col:'#7A8699'}]}], orig:label } });
+  }
   function parsePic(el, media){
     const xf=getXfrm(el); if(!xf) return null;
-    const blip=el.getElementsByTagNameNS(A,'blip')[0]; let src='';
-    if(blip){ const rid=blip.getAttributeNS(R,'embed')||blip.getAttribute('r:embed'); if(rid&&media[rid]) src=media[rid]; }
-    if(!src) return null;
-    return { t:'img', src, x:px(el._ctx.X(xf.x)), y:px(el._ctx.Y(xf.y)),
-      w:px(el._ctx.W(xf.cx)), h:px(el._ctx.H(xf.cy)) };
+    const box={ x:px(el._ctx.X(xf.x)), y:px(el._ctx.Y(xf.y)), w:px(el._ctx.W(xf.cx)), h:px(el._ctx.H(xf.cy)) };
+    const blip=el.getElementsByTagNameNS(A,'blip')[0];
+    const rid=blip?(blip.getAttributeNS(R,'embed')||blip.getAttribute('r:embed')):null;
+    const m=rid?media[rid]:null;
+    if(typeof m==='string') return Object.assign({ t:'img', src:m }, box);
+    if(m && m.ph) return Object.assign({ __ph:true, label:'image' }, box);   // unsupported format (emf/wmf…)
+    return null;
+  }
+  function parseTable(frame, tbl, ctx, out){
+    const xfrm=child(frame,'xfrm'); if(!xfrm) return;
+    const off=child(xfrm,'off'), ext=child(xfrm,'ext'); if(!off) return;
+    const X0=px(ctx.X(+off.getAttribute('x'))), Y0=px(ctx.Y(+off.getAttribute('y')));
+    const grid=child(tbl,'tblGrid');
+    const colPx=grid?kids(grid,'gridCol').map(c=>px(ctx.W(+c.getAttribute('w')))):[];
+    const colX=[0]; for(let i=0;i<colPx.length;i++) colX.push(colX[i]+colPx[i]);
+    let y=0;
+    for(const tr of kids(tbl,'tr')){
+      const rh=px(ctx.H(+(tr.getAttribute('h')||0)))||24; let ci=0;
+      for(const tc of kids(tr,'tc')){
+        const span=+(tc.getAttribute('gridSpan')||1);
+        const merged = tc.getAttribute('hMerge')==='1' || tc.getAttribute('vMerge')==='1';
+        const cx=colX[ci]||0, cw=colPx.slice(ci,ci+span).reduce((a,b)=>a+b,0)||40; ci+=span;
+        if(merged) continue;
+        const tcPr=child(tc,'tcPr'); const sf=tcPr?child(tcPr,'solidFill'):null; const fill=sf?colorOfFill(sf):null;
+        const cell={ t:'rect', x:X0+cx, y:Y0+y, w:cw, h:rh, bd:[1,'#E2E6EE'] }; if(fill) cell.fill=fill;
+        out.push(cell);
+        if(child(tc,'txBody')){ const tx=parseText(tc);
+          if(tx) out.push({ t:'text', x:X0+cx, y:Y0+y, w:cw, h:rh, tx }); }
+      }
+      y+=rh;
+    }
   }
   function walk(parent, ctx, media, out){
     for(const el of parent.children){
       const t=el.localName;
-      if(t==='sp'||t==='cxnSp'){ el._ctx=ctx; const s=parseShape(el); if(s) out.push(s); }
-      else if(t==='pic'){ el._ctx=ctx; const s=parsePic(el, media); if(s) out.push(s); }
+      if(t==='sp'){ el._ctx=ctx; const s=parseShape(el); if(s) out.push(s); }
+      else if(t==='cxnSp'){ el._ctx=ctx; el._conn=true; const s=parseShape(el); if(s) out.push(s); }
+      else if(t==='pic'){ el._ctx=ctx; const s=parsePic(el, media); if(s){ if(s.__ph) placeholder(out, s.x,s.y,s.w,s.h, s.label); else out.push(s); } }
+      else if(t==='graphicFrame'){
+        const tbl=el.getElementsByTagNameNS(A,'tbl')[0];
+        if(tbl){ parseTable(el, tbl, ctx, out); }
+        else { const xfrm=child(el,'xfrm'), off=xfrm?child(xfrm,'off'):null, ext=xfrm?child(xfrm,'ext'):null;
+          if(off&&ext){ const gd=el.getElementsByTagNameNS(A,'graphicData')[0]; const uri=(gd&&gd.getAttribute('uri'))||'';
+            const label = /chart/i.test(uri)?'Chart' : /diagram|smartart/i.test(uri)?'Diagram' : 'Embedded object';
+            placeholder(out, px(ctx.X(+off.getAttribute('x'))), px(ctx.Y(+off.getAttribute('y'))),
+              px(ctx.W(+ext.getAttribute('cx'))), px(ctx.H(+ext.getAttribute('cy'))), label); } } }
       else if(t==='grpSp'){ const xf=getXfrm(el); if(!xf) continue;
         el._ctx=ctx;
         const sx = xf.ccx ? ctx.W(xf.cx)/xf.ccx : ctx.sx, sy = xf.ccy ? ctx.H(xf.cy)/xf.ccy : ctx.sy;
@@ -2618,9 +2667,11 @@ const PPTX = (()=>{
       if((rel.getAttribute('Type')||'').indexOf('image')<0) continue;
       let p=rel.getAttribute('Target')||''; p=p.replace(/^\.\.\//,'ppt/').replace(/^\//,'');
       if(p.indexOf('ppt/')!==0) p='ppt/'+p.replace(/^ppt\//,'');
-      const ext=(p.split('.').pop()||'').toLowerCase(), mime=MIME[ext]; if(!mime) continue;   // skip emf/wmf etc.
-      const mf=zip.file(p); if(!mf) continue;
-      out[rel.getAttribute('Id')]='data:'+mime+';base64,'+await mf.async('base64');
+      const id=rel.getAttribute('Id');
+      const ext=(p.split('.').pop()||'').toLowerCase(), mime=MIME[ext];
+      if(!mime){ out[id]={ph:true}; continue; }   // emf/wmf/tiff… → positioned placeholder, never silently dropped
+      const mf=zip.file(p); if(!mf){ out[id]={ph:true}; continue; }
+      out[id]='data:'+mime+';base64,'+await mf.async('base64');
     }
     return out;
   }
