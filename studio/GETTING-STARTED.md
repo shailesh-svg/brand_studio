@@ -108,7 +108,9 @@ and delete** slides/pages, and change each one's **type**.
   left/centre/right and top/middle/bottom in one click.
 - **Arrow keys** nudge (1px; **Shift** = 10px). **Delete** removes a selected
   decoration; **⌘D** duplicates one.
-- **Drag the round handle** (bottom-right of the selection) to resize/scale.
+- **Resize** from any of the **8 handles** (corners + edges); **Shift** on a corner locks aspect ratio.
+- **Numeric panel** (top of the right rail when a shape/decoration is selected) — type exact **X / Y / W / H** and **font size**.
+- **Lock** a shape (right-click) so it can't be moved by accident.
 - **Snapping** also catches *other elements'* edges/centres and the **midpoint
   between two** (equal spacing) — not just the frame.
 - **Multi-select decorations**: **Shift-click** several, then drag/align/duplicate/

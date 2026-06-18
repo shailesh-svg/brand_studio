@@ -149,6 +149,16 @@ body { background: var(--gray-50); overflow: hidden; }
 /* ---------- FORM (right) ---------- */
 .rail-scroll { flex: 1 1 auto; overflow-y: auto; padding: var(--space-6) var(--space-4); }
 .form-host { display: flex; flex-direction: column; gap: var(--space-4); }
+/* numeric properties panel */
+.props { background: var(--gray-50); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 10px; margin-bottom: var(--space-4); }
+.props-row { display: flex; gap: 8px; }
+.props-row + .props-row { margin-top: 8px; }
+.pf { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.pf > label { font-size: 10px; font-weight: var(--w-medium); text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray-500); }
+.pf > input { width: 100%; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  font-size: var(--text-sm); font-family: var(--font-mono); color: var(--gray-900); }
+.pf > input:focus { outline: none; border-color: var(--cobalt); box-shadow: 0 0 0 3px rgba(0,71,171,0.15); }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > label { font-size: var(--text-xs); font-weight: var(--w-medium); color: var(--gray-600); }
 .field input[type=text], .field textarea, .field select {
@@ -392,10 +402,17 @@ body { background: var(--gray-50); overflow: hidden; }
   box-shadow: 0 0 0 2px var(--cobalt); border-radius: 3px;
 }
 .nt-handle{
-  position: absolute; width: 14px; height: 14px; background: var(--white);
+  position: absolute; width: 12px; height: 12px; background: var(--white);
   border: 2px solid var(--cobalt); border-radius: 50%; pointer-events: auto;
 }
-.nt-handle-br{ right: -8px; bottom: -8px; cursor: nwse-resize; }
+.nt-h-nw{ left:-7px; top:-7px; cursor: nwse-resize; }
+.nt-h-ne{ right:-7px; top:-7px; cursor: nesw-resize; }
+.nt-h-sw{ left:-7px; bottom:-7px; cursor: nesw-resize; }
+.nt-h-se{ right:-7px; bottom:-7px; cursor: nwse-resize; }
+.nt-h-n{ top:-7px; left:50%; transform: translateX(-50%); cursor: ns-resize; }
+.nt-h-s{ bottom:-7px; left:50%; transform: translateX(-50%); cursor: ns-resize; }
+.nt-h-e{ right:-7px; top:50%; transform: translateY(-50%); cursor: ew-resize; }
+.nt-h-w{ left:-7px; top:50%; transform: translateY(-50%); cursor: ew-resize; }
 
 /* snap guides */
 .nt-guide{ position: fixed; z-index: 59; pointer-events: none; background: var(--cyan); }

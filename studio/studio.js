@@ -1217,7 +1217,8 @@ function applyOverrides(frameEl){ applyOverridesTo(frameEl, state.overrides[stat
 
 function editorInitChrome(){
   _box = h('div',{class:'nt-selbox', style:{display:'none'}},
-    [ h('div',{class:'nt-handle nt-handle-br', onpointerdown:beginResize}) ]);
+    ['nw','n','ne','e','se','s','sw','w'].map(dir=>
+      h('div',{class:'nt-handle nt-h-'+dir, onpointerdown:(e)=>beginResize(e, dir)})));
   _gx = h('div',{class:'nt-guide nt-guide-v', style:{display:'none'}});
   _gy = h('div',{class:'nt-guide nt-guide-h', style:{display:'none'}});
   _bar = buildToolbar();
@@ -1284,7 +1285,7 @@ function selectDecor(div){
   _selKind = 'decor'; _selDecorId = div.getAttribute('data-decor'); _sel = null;
   _selEl = div; div.classList.add('nt-selected');
   _box.style.display = 'block'; _bar.style.display = 'none'; _dbar.style.display = 'flex';
-  positionChrome();
+  positionChrome(); renderProps();
 }
 function editorDeselect(){
   if(_selEl) _selEl.classList.remove('nt-selected');
@@ -1294,6 +1295,7 @@ function editorDeselect(){
   if(_bar) _bar.style.display = 'none';
   if(_dbar) _dbar.style.display = 'none';
   if(_sbar) _sbar.style.display = 'none';
+  renderProps();
 }
 function editorReselect(){
   if(!_frameEl) return;
@@ -1309,7 +1311,7 @@ function editorReselect(){
   }
   if(_selKind==='decor' && _selDecorId){
     const dv = _frameEl.querySelector(`.nt-decor[data-decor="${_selDecorId}"]`);
-    if(dv){ _selEl = dv; dv.classList.add('nt-selected'); _box.style.display='block'; _dbar.style.display='flex'; _bar.style.display='none'; positionChrome(); }
+    if(dv){ _selEl = dv; dv.classList.add('nt-selected'); _box.style.display='block'; _dbar.style.display='flex'; _bar.style.display='none'; positionChrome(); renderProps(); }
     else editorDeselect();
     return;
   }
@@ -1329,6 +1331,7 @@ function positionChrome(){
   let by = r.top - bar.offsetHeight - 10;
   if(by < 8) by = r.bottom + 10;
   Object.assign(bar.style, { left:bx+'px', top:by+'px' });
+  updateProps();
 }
 
 /* ---------- inline text editing ---------- */
@@ -1420,37 +1423,37 @@ function showGuide(g, x, y, len, vertical){
 }
 function hideGuide(g){ if(g) g.style.display='none'; }
 
-/* ---------- resize handle = scale font size ---------- */
-function beginResize(e){
+/* ---------- resize handles (8-direction for shapes; width for decor; font for text) ---------- */
+function beginResize(e, dir){
   e.stopPropagation(); e.preventDefault();
   if(!_selEl) return;
-  let pushed = false;
+  dir = dir || 'se';
+  let pushed = false; const sx=e.clientX, sy=e.clientY;
+  const end = (move)=>{ const up=()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); persist(); updateProps(); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); };
   if(_selKind==='decor'){
-    const d = getDecor(); if(!d) return;
-    const sx = e.clientX, w0 = d.w;
-    const move = (ev)=>{ if(!pushed){ pushUndo(); pushed=true; }
-      d.w = Math.max(40, Math.round(w0 + (ev.clientX-sx)/_scale)); _selEl.style.width = d.w+'px'; positionChrome(); };
-    const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); persist(); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); return;
+    const d = getDecor(); if(!d) return; const w0 = d.w;
+    return end((ev)=>{ if(!pushed){ pushUndo(); pushed=true; } const ddx=(ev.clientX-sx)/_scale;
+      d.w = Math.max(40, Math.round(w0 + (dir.indexOf('w')>=0 ? -ddx : ddx))); _selEl.style.width = d.w+'px'; positionChrome(); });
   }
   if(_selKind==='shape'){
     const sh = shapeObj(); if(!sh || sh.lock) return;
-    const sx=e.clientX, sy=e.clientY, w0=sh.w, h0=sh.h, ar=w0/Math.max(1,h0);
-    const move=(ev)=>{ if(!pushed){ pushUndo(); pushed=true; }
-      sh.w=Math.max(16, Math.round(w0+(ev.clientX-sx)/_scale));
-      sh.h = ev.shiftKey ? Math.max(12, Math.round(sh.w/ar)) : Math.max(12, Math.round(h0+(ev.clientY-sy)/_scale));
-      _selEl.style.width=sh.w+'px'; _selEl.style.height=sh.h+'px'; positionChrome(); };
-    const up=()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); persist(); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); return;
+    const x0=sh.x, y0=sh.y, w0=sh.w, h0=sh.h, ar=w0/Math.max(1,h0);
+    return end((ev)=>{ if(!pushed){ pushUndo(); pushed=true; }
+      const ddx=(ev.clientX-sx)/_scale, ddy=(ev.clientY-sy)/_scale;
+      let x=x0,y=y0,w=w0,hh=h0;
+      if(dir.indexOf('e')>=0) w=Math.max(16, w0+ddx);
+      if(dir.indexOf('w')>=0){ w=Math.max(16, w0-ddx); x=x0+(w0-w); }
+      if(dir.indexOf('s')>=0) hh=Math.max(12, h0+ddy);
+      if(dir.indexOf('n')>=0){ hh=Math.max(12, h0-ddy); y=y0+(h0-hh); }
+      if(ev.shiftKey && dir.length===2){ hh=Math.max(12, w/ar); if(dir.indexOf('n')>=0) y=y0+(h0-hh); }
+      sh.x=Math.round(x); sh.y=Math.round(y); sh.w=Math.round(w); sh.h=Math.round(hh);
+      Object.assign(_selEl.style,{left:sh.x+'px',top:sh.y+'px',width:sh.w+'px',height:sh.h+'px'}); positionChrome(); });
   }
-  const el = _selEl, start = e.clientY, s0 = curSize(el);
-  const move = (ev)=>{
-    if(!pushed){ pushUndo(); pushed = true; }
-    const ns = Math.max(8, Math.round(s0 + (ev.clientY-start)/_scale * 0.6));
-    setOv(el,'fontSize', ns+'px'); el.style.fontSize = ns+'px'; positionChrome();
-  };
-  const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); persist(); };
-  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  const el = _selEl, s0 = curSize(el);   // text element → scale font
+  return end((ev)=>{ if(!pushed){ pushUndo(); pushed=true; }
+    const ns = Math.max(8, Math.round(s0 + (ev.clientY-sy)/_scale * 0.6));
+    setOv(el,'fontSize', ns+'px'); el.style.fontSize = ns+'px'; positionChrome(); });
 }
 
 /* ---------- smart alignment snapping ---------- */
@@ -1638,7 +1641,7 @@ function selectShape(el){
   _sbar.querySelector('#sb-text').style.display = (sh && sh.t==='text') ? 'flex' : 'none';
   _sbar.querySelector('#sb-img').style.display = (sh && sh.t==='img') ? 'flex' : 'none';
   _box.style.display='block'; _bar.style.display='none'; _dbar.style.display='none'; _mbar.style.display='none';
-  _sbar.style.display='flex'; positionChrome();
+  _sbar.style.display='flex'; positionChrome(); renderProps();
 }
 function beginShapeDrag(e, el){
   const sh = shapeObj(); if(!sh || sh.lock) return;
@@ -1760,6 +1763,40 @@ function showShortcuts(){
     h('div',{class:'ai-body', style:{gap:'0'}}, rows.map(([a,b])=> h('div',{class:'sc-row'},[ h('span',{class:'sc-k'}, a), h('span',{class:'sc-v'}, b) ]))) ]));
   document.body.appendChild(ov);
 }
+
+/* ---------- numeric properties panel (X/Y/W/H + font) ---------- */
+function renderProps(){
+  const host = document.getElementById('props'); if(!host) return; host.innerHTML='';
+  const fld = (label, val, key, on, onchange)=> h('div',{class:'pf'},
+    [ h('label',{}, label), h('input',{type:'number', 'data-pk':key, value:Math.round(val),
+        oninput: on?(e=>on(parseFloat(e.target.value)||0)):null,
+        onchange: onchange?(e=>onchange(parseFloat(e.target.value)||0)):null }) ]);
+  if(_selKind==='shape'){ const sh=shapeObj(); if(!sh){ host.style.display='none'; return; }
+    const r=[ fld('X',sh.x,'x',v=>setShapeGeom('x',v,0)), fld('Y',sh.y,'y',v=>setShapeGeom('y',v,0)),
+              fld('W',sh.w,'w',v=>setShapeGeom('w',v,16)), fld('H',sh.h,'h',v=>setShapeGeom('h',v,12)) ];
+    host.appendChild(h('div',{class:'props-row'}, r));
+    if(sh.t==='text' && sh.tx){ const fs=((sh.tx.paras[0]||{}).runs||[])[0]?.fs || 16;
+      host.appendChild(h('div',{class:'props-row'}, [ fld('Font px', fs, 'fs', null, v=>setShapeFontPx(v)) ])); }
+    host.style.display='block';
+  } else if(_selKind==='decor'){ const d=getDecor(); if(!d){ host.style.display='none'; return; }
+    host.appendChild(h('div',{class:'props-row'},
+      [ fld('X',d.x||0,'x',v=>setDecorGeom('x',v,-9999)), fld('Y',d.y||0,'y',v=>setDecorGeom('y',v,-9999)), fld('W',d.w||0,'w',v=>setDecorGeom('w',v,20)) ]));
+    host.style.display='block';
+  } else { host.style.display='none'; }
+}
+function updateProps(){ const host=document.getElementById('props'); if(!host||host.style.display!=='block') return;
+  let v=null; if(_selKind==='shape'){ const s=shapeObj(); if(s) v={x:s.x,y:s.y,w:s.w,h:s.h}; }
+  else if(_selKind==='decor'){ const d=getDecor(); if(d) v={x:d.x||0,y:d.y||0,w:d.w||0}; }
+  if(!v) return;
+  host.querySelectorAll('input[data-pk]').forEach(inp=>{ if(inp===document.activeElement) return;
+    const k=inp.getAttribute('data-pk'); if(v[k]!=null) inp.value=Math.round(v[k]); });
+}
+function setShapeGeom(k,v,min){ const sh=shapeObj(); if(!sh) return; sh[k]=Math.max(min, Math.round(v));
+  if(_selEl) Object.assign(_selEl.style,{left:sh.x+'px',top:sh.y+'px',width:sh.w+'px',height:sh.h+'px'}); positionChrome(); persist(); }
+function setShapeFontPx(v){ const sh=shapeObj(); if(!sh||sh.t!=='text') return; const px=Math.max(6,Math.round(v));
+  pushUndo(); sh.tx.paras.forEach(p=>p.runs.forEach(r=>{ if(!r.br) r.fs=px; })); persist(); renderPreview(); }
+function setDecorGeom(k,v,min){ const d=getDecor(); if(!d) return; d[k]=Math.max(min, Math.round(v));
+  if(_selEl){ if(k==='x')_selEl.style.left=d.x+'px'; if(k==='y')_selEl.style.top=d.y+'px'; if(k==='w')_selEl.style.width=d.w+'px'; } positionChrome(); persist(); }
 
 /* ---------- multi-select of deck shapes ---------- */
 function buildShapeMultiToolbar(){
