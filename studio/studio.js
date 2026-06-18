@@ -2124,16 +2124,20 @@ function renderElementsPanel(){
    ============================================================ */
 const AI_MODEL_LS = 'nt-openai-model';   // key lives in .env on the local server, never in the browser
 const aiGetModel = () => { try { return localStorage.getItem(AI_MODEL_LS) || 'gpt-4o-mini'; } catch(e){ return 'gpt-4o-mini'; } };
-// Curated, in order of increasing power/cost. Reasoning ("o*") models think before answering — slower, deeper.
+// Curated, in order of increasing power/cost. GPT-5 / "o*" models reason before answering — slower, deeper.
 const AI_MODELS = [
   ['gpt-4o-mini',  'gpt-4o-mini · fastest, cheapest'],
   ['gpt-4o',       'gpt-4o · balanced, high quality'],
-  ['gpt-4.1-mini', 'gpt-4.1-mini · fast & sharp'],
-  ['gpt-4.1',      'gpt-4.1 · most capable for copy'],
-  ['o4-mini',      'o4-mini · reasoning (slower, deeper)'],
+  ['gpt-4.1',      'gpt-4.1 · strong copy'],
+  ['gpt-5-mini',   'gpt-5-mini · GPT-5, fast & cheap'],
+  ['gpt-5',        'gpt-5 · GPT-5 flagship'],
+  ['gpt-5.4',      'gpt-5.4 · newer GPT-5'],
+  ['gpt-5.5',      'gpt-5.5 · most capable'],
+  ['o4-mini',      'o4-mini · reasoning (deep)'],
   ['o3',           'o3 · deepest reasoning (premium)'],
 ];
-const aiIsReasoning = m => /^o\d/.test(m);   // o1/o3/o4-mini etc. — different request params
+// These use max_completion_tokens and reject a custom temperature (o1/o3/o4-mini + the GPT-5 family).
+const aiIsReasoning = m => /^o\d/.test(m) || /^gpt-5/.test(m);
 
 /* the editable text fields of the current asset (current slide for decks) */
 function aiFields(scope){

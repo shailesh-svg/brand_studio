@@ -45,10 +45,12 @@ keys + truncated current text, "This slide" scope for decks, and shows the token
 count after each run.
 
 **Pick a higher model** from the **Model** dropdown when you want more power:
-`gpt-4o` and `gpt-4.1` for stronger copy, or the reasoning models `o4-mini` / `o3`
-for the deepest drafting (slower, premium). Your choice is remembered. Reasoning
-models think before answering, so they take longer and cost more tokens — use them
-for hard briefs, keep `gpt-4o-mini` for quick fills.
+`gpt-4o` / `gpt-4.1` for stronger copy, the **GPT-5 family** (`gpt-5-mini`, `gpt-5`,
+`gpt-5.4`, **`gpt-5.5`** — most capable) for the best drafting, or `o4-mini` / `o3`
+for deep reasoning. Your choice is remembered. GPT-5 and the `o*` models think
+before answering, so they take longer and cost more tokens — use them for hard
+briefs, keep `gpt-4o-mini` for quick fills. (Availability depends on your key's
+access; the app shows the exact error if a model isn't enabled.)
 
 ## Slide navigator
 Multi-slide assets (carousels, proposals, imported decks) show a **thumbnail strip**
