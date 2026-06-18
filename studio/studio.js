@@ -2123,7 +2123,8 @@ function renderElementsPanel(){
    field keys + truncated current text sent, JSON response, this-slide scope.
    ============================================================ */
 const AI_MODEL_LS = 'nt-openai-model';   // key lives in .env on the local server, never in the browser
-const aiGetModel = () => { try { return localStorage.getItem(AI_MODEL_LS) || 'gpt-4o-mini'; } catch(e){ return 'gpt-4o-mini'; } };
+// fall back to the default if a previously-stored model is no longer in the list (keeps dropdown ⇄ used-model in sync)
+const aiGetModel = () => { try { const m = localStorage.getItem(AI_MODEL_LS); return (m && AI_MODELS.some(x=>x[0]===m)) ? m : 'gpt-4o-mini'; } catch(e){ return 'gpt-4o-mini'; } };
 // Curated, in order of increasing power/cost. GPT-5 / "o*" models reason before answering — slower, deeper.
 const AI_MODELS = [
   ['gpt-4o-mini',  'gpt-4o-mini · fastest, cheapest'],
@@ -2176,8 +2177,9 @@ async function aiDraft(brief, scope, statusEl, mode){
   try {
     const body = { model, response_format:{ type:'json_object' },
       messages:[ {role:'system', content:AI_SYSTEM}, {role:'user', content:user} ] };
-    if(reasoning){ body.max_completion_tokens = 4000; }   // o* models: no temperature, use max_completion_tokens
-    else { body.temperature = 0.7; body.max_tokens = 1000; }
+    // size the output budget to the field count; reasoning/GPT-5 need extra headroom for hidden thinking
+    if(reasoning){ body.max_completion_tokens = Math.min(16000, 2500 + fields.length*220); }  // no temperature, use max_completion_tokens
+    else { body.temperature = 0.7; body.max_tokens = Math.min(4000, 500 + fields.length*70); }
     const res = await fetch('/api/openai', {        // local proxy injects the key from .env
       method:'POST', headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify(body)
@@ -2185,8 +2187,17 @@ async function aiDraft(brief, scope, statusEl, mode){
     if(res.status===404) throw new Error('AI server not running — start it with: python3 tools/serve.py');
     const data = await res.json();
     if(!res.ok) throw new Error((data && data.error && (data.error.message||data.error)) || ('error '+res.status));
-    const obj = JSON.parse(data.choices[0].message.content);
+    const choice = data.choices && data.choices[0];
+    let content = choice && choice.message && choice.message.content;
+    if(choice && choice.finish_reason==='length' && !(content||'').trim())
+      throw new Error('“'+model+'” ran out of tokens before replying — try a lighter model or a shorter brief.');
+    if(!content || !content.trim()) throw new Error('Empty response from “'+model+'” — try again or pick another model.');
+    let obj;
+    try { obj = JSON.parse(content); }
+    catch(_){ const mm = content.match(/\{[\s\S]*\}/); if(mm){ try{ obj = JSON.parse(mm[0]); }catch(__){} } }
+    if(!obj || typeof obj!=='object') throw new Error('Couldn’t read the model’s output as JSON — try again or pick another model.');
     pushUndo(); const n = aiApply(fields, obj); persist(); renderAll();
+    if(n===0){ statusEl.textContent = 'Model returned no usable fields — try rephrasing the brief or another model.'; return; }
     const u = data.usage||{}; statusEl.textContent = `Applied to ${n} field(s) · ${u.total_tokens||'?'} tokens (${model})`;
     toast('AI draft applied — fine-tune on the canvas');
   } catch(e){ const m = (e && e.message) || String(e);
