@@ -10,7 +10,7 @@ const base = pathToFileURL(path.resolve('studio/index.html')).href;
 // benign messages that are environmental (not our code)
 const IGNORE = /favicon|Failed to load resource|net::|ERR_|Access to (font|CSS|fetch)|CORS|preload|MIME type|was preloaded/i;
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ['--no-sandbox'] });
 const failures = [];
 
 for (const kind of KINDS) {

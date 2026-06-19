@@ -53,19 +53,16 @@ jobs:
   smoke:
     name: Smoke test (headless load, all asset kinds)
     runs-on: ubuntu-latest
+    # Official Playwright image: Chromium + all OS deps preinstalled (no flaky browser download)
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.0-noble
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Playwright (Chromium)
+      - name: Install playwright (matches the image's bundled browsers)
         run: |
-          npm init -y >/dev/null 2>&1
-          npm install --no-save playwright >/dev/null 2>&1
-          npx playwright install --with-deps chromium
+          npm init -y
+          npm install playwright@1.61.0
 
       - name: Load every asset kind and assert no console errors
         run: node .github/scripts/smoke.mjs
