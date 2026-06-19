@@ -409,7 +409,7 @@ function buildProposalPage(page, idx, total){
 function impRunStyle(r, fscale){
   const s = { fontFamily:FONT };
   if(r.fs) s.fontSize = (r.fs*(fscale||1)).toFixed(1)+'px';
-  if(r.b) s.fontWeight = '700';
+  if(r.w) s.fontWeight = String(r.w); else if(r.b) s.fontWeight = '700';
   if(r.i) s.fontStyle = 'italic';
   if(r.u) s.textDecoration = 'underline';
   if(r.sp) s.letterSpacing = r.sp+'px';
@@ -2173,8 +2173,37 @@ function assetRefText(kind, data){
   return parts.join('\n').slice(0,6000);
 }
 
+/* shared OpenAI call: model params (reasoning-aware), hardened parsing → returns {obj, model, tokens} */
+async function aiChat(messages, maxOut){
+  const model = aiGetModel(), reasoning = aiIsReasoning(model);
+  const body = { model, response_format:{ type:'json_object' }, messages };
+  if(reasoning) body.max_completion_tokens = Math.min(16000, maxOut||4000);   // no temperature, use max_completion_tokens
+  else { body.temperature = 0.7; body.max_tokens = Math.min(4000, maxOut||1500); }
+  const res = await fetch('/api/openai', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+  if(res.status===404) throw new Error('AI server not running — start it with: python3 tools/serve.py');
+  const data = await res.json();
+  if(!res.ok) throw new Error((data && data.error && (data.error.message||data.error)) || ('error '+res.status));
+  const choice = data.choices && data.choices[0]; let content = choice && choice.message && choice.message.content;
+  if(choice && choice.finish_reason==='length' && !(content||'').trim())
+    throw new Error('“'+model+'” ran out of tokens before replying — try a lighter model or a shorter brief.');
+  if(!content || !content.trim()) throw new Error('Empty response from “'+model+'” — try again or pick another model.');
+  let obj; try { obj = JSON.parse(content); }
+  catch(_){ const mm = content.match(/\{[\s\S]*\}/); if(mm){ try{ obj = JSON.parse(mm[0]); }catch(__){} } }
+  if(!obj || typeof obj!=='object') throw new Error('Couldn’t read the model’s output as JSON — try again or pick another model.');
+  return { obj, model, tokens:(data.usage||{}).total_tokens };
+}
+const aiClamp = (v,lo,hi)=>{ v=+v; return isNaN(v)?lo:Math.max(lo,Math.min(hi,v)); };
+function aiBgIsDark(bg){ if(!bg||typeof bg!=='string') return false;
+  const m=bg.match(/#([0-9a-f]{6})/i); if(!m) return /navy|0a0e|02020|070|gradient.*#0/i.test(bg);
+  const n=parseInt(m[1],16); return (0.299*((n>>16)&255)+0.587*((n>>8)&255)+0.114*(n&255))<140; }
+
 async function aiDraft(brief, scope, statusEl, mode, ref){
-  const fields = aiFields(scope); if(!fields.length){ statusEl.textContent = 'No editable text here to draft.'; return; }
+  const fields = aiFields(scope);
+  if(!fields.length){   // nothing to fill → let the LLM design copy + layout from scratch on this canvas
+    if(isDeckKind(state.kind) && state.data[state.kind].slides && state.data[state.kind].slides.length)
+      return aiGenerateLayout(brief, statusEl, ref);
+    statusEl.textContent = 'No text fields here. Pick Post / Banner / One-Pager / a deck (or add a slide), then try again.'; return;
+  }
   const spec = fields.map(f=>`- ${f.key} (≤${f.max} chars; current: "${f.cur.slice(0,90)}")`).join('\n');
   const asset = KINDS[state.kind].name;
   const hasImg = ref && ref.image, hasRefTxt = ref && ref.text && ref.text.trim();
@@ -2197,36 +2226,68 @@ async function aiDraft(brief, scope, statusEl, mode, ref){
       + (hasRefTxt ? `Match the style of this REFERENCE ASSET:\n${ref.text}\n\n` : '')
       + `Draft copy for these fields of a ${asset}. Keep the meaning where it makes sense, match the brief, stay on-brand.\nFields:\n${spec}`;
   }
-  const model = aiGetModel(), reasoning = aiIsReasoning(model);
+  const reasoning = aiIsReasoning(aiGetModel());
   const verb = mode==='generate' ? 'Generating' : mode==='convert' ? 'Converting' : 'Drafting';
   statusEl.textContent = verb+'…' + (reasoning ? ' (reasoning — may take longer)' : '') + (hasImg ? ' (reading image)' : '');
   try {
     const userContent = hasImg ? [ {type:'text', text:user}, {type:'image_url', image_url:{ url:ref.image }} ] : user;
-    const body = { model, response_format:{ type:'json_object' },
-      messages:[ {role:'system', content:AI_SYSTEM}, {role:'user', content:userContent} ] };
-    // size the output budget to the field count; reasoning/GPT-5 need extra headroom for hidden thinking
-    if(reasoning){ body.max_completion_tokens = Math.min(16000, 2500 + fields.length*220); }  // no temperature, use max_completion_tokens
-    else { body.temperature = 0.7; body.max_tokens = Math.min(4000, 500 + fields.length*70); }
-    const res = await fetch('/api/openai', {        // local proxy injects the key from .env
-      method:'POST', headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify(body)
-    });
-    if(res.status===404) throw new Error('AI server not running — start it with: python3 tools/serve.py');
-    const data = await res.json();
-    if(!res.ok) throw new Error((data && data.error && (data.error.message||data.error)) || ('error '+res.status));
-    const choice = data.choices && data.choices[0];
-    let content = choice && choice.message && choice.message.content;
-    if(choice && choice.finish_reason==='length' && !(content||'').trim())
-      throw new Error('“'+model+'” ran out of tokens before replying — try a lighter model or a shorter brief.');
-    if(!content || !content.trim()) throw new Error('Empty response from “'+model+'” — try again or pick another model.');
-    let obj;
-    try { obj = JSON.parse(content); }
-    catch(_){ const mm = content.match(/\{[\s\S]*\}/); if(mm){ try{ obj = JSON.parse(mm[0]); }catch(__){} } }
-    if(!obj || typeof obj!=='object') throw new Error('Couldn’t read the model’s output as JSON — try again or pick another model.');
+    const maxOut = reasoning ? 2500 + fields.length*220 : 500 + fields.length*70;
+    const { obj, model, tokens } = await aiChat([ {role:'system', content:AI_SYSTEM}, {role:'user', content:userContent} ], maxOut);
     pushUndo(); const n = aiApply(fields, obj); persist(); renderAll();
     if(n===0){ statusEl.textContent = 'Model returned no usable fields — try rephrasing the brief or another model.'; return; }
-    const u = data.usage||{}; statusEl.textContent = `Applied to ${n} field(s) · ${u.total_tokens||'?'} tokens (${model})`;
+    statusEl.textContent = `Applied to ${n} field(s) · ${tokens||'?'} tokens (${model})`;
     toast('AI draft applied — fine-tune on the canvas');
+  } catch(e){ const m = (e && e.message) || String(e);
+    statusEl.textContent = /fetch/i.test(m)
+      ? 'Can’t reach the AI server. Run “python3 tools/serve.py” and open http://localhost:8000 (not file://).'
+      : 'Failed: ' + m; }
+}
+
+/* design copy AND placement from scratch → drop editable, brand-styled text blocks onto the current canvas */
+async function aiGenerateLayout(brief, statusEl, ref){
+  const d = state.data[state.kind], sl = d.slides[state.active];
+  if(!sl){ statusEl.textContent = 'No slide to draw on — add one first.'; return; }
+  const asset = KINDS[state.kind].name;
+  const dark = aiBgIsDark(sl.bg);
+  const hasBgImg = (sl.shapes||[]).some(s=>s.t==='img' && s.w>=d.w*0.85 && s.h>=d.h*0.85);
+  const hasImg = ref && ref.image, hasRefTxt = ref && ref.text && ref.text.trim();
+  const user = `Design BOTH the copy and the layout for a ${asset} on a ${d.w}×${d.h}px canvas`
+    + (sl.bg ? ` with background ${sl.bg}` : '') + (hasBgImg ? ' that already has a full-bleed background image (you can’t see it — choose high-contrast text)' : '') + `.\n`
+    + `BRIEF:\n${brief || '(invent a strong, specific, on-brand asset)'}\n`
+    + (hasRefTxt ? `\nMatch the structure & tone of this REFERENCE:\n${ref.text}\n` : '')
+    + (hasImg ? `\nA reference image is attached — match its layout logic and hierarchy.\n` : '')
+    + `\nReturn ONLY JSON: { "blocks": [ { "text", "role", "x", "y", "w", "h", "size", "weight", "align", "color" } ] }\n`
+    + `- role ∈ kicker | headline | subhead | body | stat | caption | cta\n`
+    + `- x, y, w, h are FRACTIONS of the canvas (0..1). Keep ≥0.06 margins, DON'T overlap blocks, stay inside the canvas.\n`
+    + `- size = font size in px for THIS canvas (kicker ≈ ${Math.round(d.w*0.016)}, headline ≈ ${Math.round(d.w*0.058)}, subhead ≈ ${Math.round(d.w*0.03)}, body ≈ ${Math.round(d.w*0.021)}).\n`
+    + `- weight ∈ 200,300,400,500,600,700 (ExtraLight 200 for big headlines is very on-brand).\n`
+    + `- align ∈ left|center|right. color ∈ cobalt | cyan | ink | muted | white — choose for contrast on the background.\n`
+    + `- 4–7 blocks. UPPERCASE only the kicker; sentence case elsewhere. No emoji. Make it complete, not placeholder.`;
+  const reasoning = aiIsReasoning(aiGetModel());
+  statusEl.textContent = 'Designing layout…' + (reasoning ? ' (reasoning)' : '') + (hasImg ? ' (reading image)' : '');
+  try {
+    const userContent = hasImg ? [ {type:'text', text:user}, {type:'image_url', image_url:{ url:ref.image }} ] : user;
+    const { obj, model, tokens } = await aiChat([ {role:'system', content:AI_SYSTEM}, {role:'user', content:userContent} ], reasoning?6000:2200);
+    const blocks = Array.isArray(obj.blocks) ? obj.blocks : (Array.isArray(obj) ? obj : null);
+    if(!blocks || !blocks.length) throw new Error('No layout blocks returned — try again or another model.');
+    const colMap = c => ({ cobalt:C.cobalt, cyan:C.cyan, white:C.white, muted: dark?C.gray400:C.gray500, ink: dark?C.white:C.gray900 })[c] || (dark?C.white:C.gray900);
+    pushUndo(); let added=0;
+    blocks.forEach(b=>{
+      const txt = String(b.text||'').trim(); if(!txt) return;
+      const x = Math.round(aiClamp(b.x,0,0.95)*d.w), y = Math.round(aiClamp(b.y,0,0.97)*d.h);
+      const w = Math.round(aiClamp(b.w,0.05,1)*d.w), hh = Math.round(aiClamp(b.h,0.03,1)*d.h) || Math.round(d.h*0.08);
+      const fs = Math.max(8, Math.min(Math.round(d.w*0.18), Math.round(+b.size || d.w*0.024)));
+      const wt = [200,300,400,500,600,700].includes(+b.weight) ? +b.weight : (/(kicker|cta)/.test(b.role)?600:300);
+      const al = ['left','center','right'].includes(b.align) ? b.align : 'left';
+      sl.shapes.push({ t:'text', x, y, w, h:hh, tx:{ anchor:'t', pads:[4,6,4,6], fscale:1,
+        paras:[{ a:al, lh: /headline/.test(b.role)?1.06:1.25, mt:0, mb:0, bu:null,
+          runs:[{ s:txt, fs, w:wt, sp:/kicker/.test(b.role)?1.4:0, col: colMap(b.color) }] }], orig:txt } });
+      added++;
+    });
+    if(!added) throw new Error('Blocks had no text — try again.');
+    persist(); editorDeselect(); renderAll();
+    statusEl.textContent = `Created ${added} text block(s) · ${tokens||'?'} tokens (${model})`;
+    toast('AI layout created — drag, resize & recolor on the canvas');
   } catch(e){ const m = (e && e.message) || String(e);
     statusEl.textContent = /fetch/i.test(m)
       ? 'Can’t reach the AI server. Run “python3 tools/serve.py” and open http://localhost:8000 (not file://).'
@@ -2266,8 +2327,8 @@ function aiOpen(){
     refOpts.map(([v,t])=>h('option',{value:v}, t)));
 
   function syncMode(){ const m=modeSel.value;
-    if(m==='generate'){ lbl.textContent='Storyboard — outline what each section should cover';
-      brief.placeholder='e.g. Slide 1: hook on why eval matters. Slides 2–4: our 3-step method with a metric each. Slide 5: CTA to book a pilot.';
+    if(m==='generate'){ lbl.textContent='Idea or storyboard — plain English is fine (no slide numbers needed)';
+      brief.placeholder='e.g. A post on why evals matter: simply verifying AI output vs input — the benefits and the challenges — and a nudge to start small. (On a blank/imported canvas I’ll write AND place the text for you.)';
       btn.textContent='Generate full draft'; }
     else if(m==='convert'){ lbl.textContent='Paste your draft — it’ll be matched to the brand & this layout';
       brief.placeholder='Paste your existing copy / rough draft here…'; btn.textContent='Convert → fill fields'; }
