@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate (JS + Python syntax)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check JavaScript syntax
+        run: |
+          fail=0
+          for f in studio/*.js; do
+            if node --check "$f"; then echo "ok: $f"; else echo "FAIL: $f"; fail=1; fi
+          done
+          exit $fail
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check Python syntax
+        run: |
+          fail=0
+          for f in tools/*.py; do
+            if python -m py_compile "$f"; then echo "ok: $f"; else echo "FAIL: $f"; fail=1; fi
+          done
+          exit $fail
+
+      - name: Sanity checks
+        run: |
+          set -e
+          grep -q 'src="studio.js"' studio/index.html
+          grep -q 'id="ai-open"' studio/index.html
+          grep -q 'id="import-open"' studio/index.html
+          test -f studio/colors_and_type.css
+          test -f studio/studio.css
+          echo "sanity checks passed"
+
+  smoke:
+    name: Smoke test (headless load, all asset kinds)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright (Chromium)
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright >/dev/null 2>&1
+          npx playwright install --with-deps chromium
+
+      - name: Load every asset kind and assert no console errors
+        run: node .github/scripts/smoke.mjs
