@@ -72,6 +72,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
+    allow_reuse_address = True   # avoid "address already in use" on quick restarts (TIME_WAIT)
 
 if __name__ == '__main__':
     has_key = bool(os.environ.get('OPENAI_API_KEY'))
@@ -81,3 +82,11 @@ if __name__ == '__main__':
         Server(('127.0.0.1', PORT), Handler).serve_forever()
     except KeyboardInterrupt:
         print("\nstopped")
+    except OSError as e:
+        if e.errno == 48:   # EADDRINUSE — another server is already on this port
+            print(f"\n✗ Port {PORT} is already in use — a Studio server is probably already running.")
+            print(f"  • Just open it:        http://localhost:{PORT}")
+            print(f"  • Or free the port:    lsof -ti tcp:{PORT} | xargs kill")
+            print(f"  • Or use another port: PORT={PORT+1} python3 tools/serve.py")
+            sys.exit(1)
+        raise
