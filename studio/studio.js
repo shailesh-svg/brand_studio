@@ -448,6 +448,7 @@ function buildImportedSlide(deck, idx){
       Object.assign(st, { display:'flex', flexDirection:'column',
         justifyContent:({t:'flex-start',ctr:'center',b:'flex-end'}[tx.anchor]||'flex-start'),
         padding: tx.pads[0]+'px '+tx.pads[1]+'px '+tx.pads[2]+'px '+tx.pads[3]+'px', overflow:'visible' });
+      if(tx.nowrap) st.whiteSpace='nowrap';   // single-line runs (e.g. PDF text overlay) — never mid-word wrap
       node = h('div',{class:'nt-imp-tx', style:st});
       node.setAttribute('data-bind', 'slides.'+idx+'.shapes.'+k+'.tx.orig');
       node.setAttribute('data-defstyle', '{}');
@@ -827,11 +828,52 @@ function renderDeckBody(host, d){
     [ h('button',{class:'add-slide-btn', onClick:()=>addShape('text')}, '+ Text'),
       h('button',{class:'add-slide-btn', onClick:()=>addShape('rect')}, '+ Rect'),
       h('button',{class:'add-slide-btn', onClick:()=>addImageShape()}, '+ Image') ]));
+  renderObjectsPanel(host, d);
   host.appendChild(h('div',{class:'rail-section-title nt-label', style:{marginTop:'12px'}}, 'Slides'));
   host.appendChild(h('div',{style:{display:'flex', gap:'8px', flexWrap:'wrap'}},
     [ h('button',{class:'add-slide-btn', onClick:()=>{ pushUndo(); d.slides.splice(state.active+1,0, JSON.parse(JSON.stringify(d.slides[state.active]))); state.active++; editorDeselect(); renderAll(); }}, '⧉ Duplicate slide'),
       h('button',{class:'add-slide-btn', onClick:()=>{ if(d.slides.length<=1) return; pushUndo(); d.slides.splice(state.active,1); if(state.active>=d.slides.length) state.active=d.slides.length-1; editorDeselect(); renderAll(); }}, '✕ Delete slide'),
       h('button',{class:'add-slide-btn', onClick:()=>{ pushUndo(); d.slides.splice(state.active+1,0,{bg:'#FFFFFF', shapes:[]}); state.active++; editorDeselect(); renderAll(); }}, '+ Blank slide') ]));
+}
+/* Objects/Layers panel — click any component to select it (even when hidden behind others) */
+function objLabel(sh){
+  if(sh.t==='text') return (sh.tx && sh.tx.orig ? sh.tx.orig.replace(/\s+/g,' ').trim().slice(0,36) : 'Text') || 'Text';
+  if(sh.t==='img') return 'Image';
+  if(String(sh.fill||'').indexOf('linear')===0) return 'Gradient';
+  if(sh.r>=9999) return 'Ellipse';
+  return (sh.fill||sh.bd) ? 'Shape' : 'Box';
+}
+function renderObjectsPanel(host, d){
+  const sl = d.slides[state.active]; if(!sl) return;
+  const shapes = sl.shapes || [];
+  host.appendChild(h('div',{class:'rail-section-title nt-label', style:{marginTop:'14px'}}, 'Objects on this slide ('+shapes.length+')'));
+  if(!shapes.length){ host.appendChild(h('div',{class:'rail-hint'}, 'Nothing here yet — add Text / Rect / Image above.')); return; }
+  const list = h('div',{class:'obj-list'});
+  // top layer first (drawing order is bottom→top, so reverse for a layers view)
+  shapes.map((sh,k)=>({sh,k})).reverse().forEach(({sh,k})=>{
+    const sel = _selShape && _selShape.i===state.active && _selShape.k===k;
+    const row = h('div',{class:'obj-row'+(sel?' obj-sel':''), 'data-k':String(k), title:'Click to select on canvas',
+        onclick:()=>selectObject(k)},[
+      h('span',{class:'obj-ic obj-ic-'+sh.t}, sh.t==='text'?'T':sh.t==='img'?'▣':'◻'),
+      h('span',{class:'obj-label'}, objLabel(sh)),
+      sh.lock ? h('span',{class:'obj-badge', title:'Locked'}, '🔒') : null,
+      h('button',{class:'obj-x', title:'Delete', onclick:(e)=>{ e.stopPropagation(); pushUndo();
+        sl.shapes.splice(k,1); if(_selShape && _selShape.i===state.active && _selShape.k===k) editorDeselect();
+        persist(); renderAll(); }}, '✕')
+    ]);
+    list.appendChild(row);
+  });
+  host.appendChild(list);
+}
+function selectObject(k){
+  const el = document.querySelector('#stage-scaler [data-shape="'+state.active+'.'+k+'"]');
+  if(el && _sbar){ selectShape(el); el.scrollIntoView({block:'nearest', inline:'nearest'}); }
+}
+function syncObjPanel(){
+  document.querySelectorAll('#form-host .obj-row').forEach(r=>{
+    const k = +r.getAttribute('data-k');
+    r.classList.toggle('obj-sel', !!(_selShape && _selShape.i===state.active && _selShape.k===k));
+  });
 }
 function renderForm(){
   const host = $('#form-host'); host.innerHTML='';
@@ -1295,7 +1337,7 @@ function editorDeselect(){
   if(_bar) _bar.style.display = 'none';
   if(_dbar) _dbar.style.display = 'none';
   if(_sbar) _sbar.style.display = 'none';
-  renderProps();
+  renderProps(); syncObjPanel();
 }
 function editorReselect(){
   if(!_frameEl) return;
@@ -1641,7 +1683,7 @@ function selectShape(el){
   _sbar.querySelector('#sb-text').style.display = (sh && sh.t==='text') ? 'flex' : 'none';
   _sbar.querySelector('#sb-img').style.display = (sh && sh.t==='img') ? 'flex' : 'none';
   _box.style.display='block'; _bar.style.display='none'; _dbar.style.display='none'; _mbar.style.display='none';
-  _sbar.style.display='flex'; positionChrome(); renderProps();
+  _sbar.style.display='flex'; positionChrome(); renderProps(); syncObjPanel();
 }
 function beginShapeDrag(e, el){
   const sh = shapeObj(); if(!sh || sh.lock) return;
@@ -2517,23 +2559,63 @@ function importImageAsset(file){
 }
 
 /* ---- PDF (render each page → image slide) ---- */
+// Render PDF → deck: crisp page IMAGE (locked) + an editable text box over every text run.
+// Each box samples its background + text colour from the rendered page so it matches and,
+// when edited, cleanly covers the original glyphs underneath.
+async function pdfToDeck(arrayBuffer, name){
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const slides = []; let W = 0, H = 0; const RS = 2;
+  const dist = (a,b)=>Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]);
+  for(let i=1; i<=pdf.numPages; i++){
+    const page = await pdf.getPage(i);
+    const vp1 = page.getViewport({ scale:1 }), vp = page.getViewport({ scale:RS });
+    const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+    const ctx = cv.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    const w = Math.round(vp1.width), h = Math.round(vp1.height); if(i===1){ W=w; H=h; }
+    const shapes = [{ t:'img', x:0, y:0, w, h, src: cv.toDataURL('image/jpeg', 0.92), lock:true }];  // locked background
+    let px;
+    try { const data = ctx.getImageData(0,0,cv.width,cv.height).data;
+      px = (cx,cy)=>{ cx=Math.max(0,Math.min(cv.width-1,cx|0)); cy=Math.max(0,Math.min(cv.height-1,cy|0));
+        const o=(cy*cv.width+cx)*4; return [data[o],data[o+1],data[o+2]]; }; } catch(_){ px=null; }
+    try {
+      const tc = await page.getTextContent();
+      tc.items.forEach(it=>{
+        const s = (it.str||'').replace(/\s+$/,''); if(!s.trim()) return;
+        const tr = pdfjsLib.Util.transform(vp1.transform, it.transform);
+        const fs = Math.hypot(tr[2], tr[3]); if(fs < 4 || fs > h*0.5) return;
+        if(Math.abs(tr[1]) > Math.abs(tr[0])) return;            // skip rotated/vertical text (keep it as image)
+        const tw = Math.max(fs*0.4, (it.width||0) * (vp1.width/vp1.viewBox[2] || 1));
+        const x = Math.round(tr[4]), top = Math.round(tr[5] - fs);
+        const bw = Math.round(tw), bh = Math.round(fs*1.3);
+        let bg = '#FFFFFF', col = '#111111';
+        if(px){
+          const midY = (top + fs*0.55) * RS;
+          const bgS = px((x-3)*RS, midY), bgS2 = px((x+bw+3)*RS, midY), bgT = px((x+bw*0.5)*RS, (top-3)*RS);
+          const bgc = dist(bgS,bgS2) < 40 ? bgS : bgT;          // agree → side bg; else above
+          bg = '#'+bgc.map(v=>v.toString(16).padStart(2,'0')).join('');
+          let best=null, bd=-1;                                  // text colour = pixel most unlike bg
+          for(let sx=x; sx<x+bw; sx+=Math.max(2,Math.round(bw/24))){
+            const p=px(sx*RS, midY), dd=dist(p,bgc); if(dd>bd){ bd=dd; best=p; } }
+          if(best && bd>60) col = '#'+best.map(v=>v.toString(16).padStart(2,'0')).join('');
+        }
+        shapes.push({ t:'text', x, y:top, w:Math.round(bw*1.12+2), h:bh, fill:bg,
+          tx:{ anchor:'ctr', nowrap:true, pads:[0,1,0,1], fscale:1,
+            paras:[{ a:'left', lh:1, mt:0, mb:0, bu:null, runs:[{ s, fs:Math.round(fs), col }] }], orig:s } });
+      });
+    } catch(_){ /* no text layer → just the image */ }
+    slides.push({ bg:'#FFFFFF', shapes });
+  }
+  return { w:W, h:H, name, slides };
+}
 async function importPdfAsset(file){
   if(!window.pdfjsLib){ toast('PDF engine still loading — try again in a moment', true); return; }
   try {
-    toast('Rendering PDF…');
-    const buf = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-    const slides = []; let W = 0, H = 0; const RS = 2;   // 2× for crisp text
-    for(let i=1; i<=pdf.numPages; i++){
-      const page = await pdf.getPage(i);
-      const vp1 = page.getViewport({ scale:1 }), vp = page.getViewport({ scale:RS });
-      const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
-      await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
-      const w = Math.round(vp1.width), h = Math.round(vp1.height); if(i===1){ W=w; H=h; }
-      slides.push({ bg:'#FFFFFF', shapes:[{ t:'img', x:0, y:0, w, h, src: cv.toDataURL('image/jpeg', 0.92) }] });
-    }
-    importDeckIntoStudio({ w:W, h:H, name:file.name, slides });
-    toast('Imported '+pdf.numPages+'-page PDF — every page is editable');
+    toast('Reading PDF…');
+    const deck = await pdfToDeck(await file.arrayBuffer(), file.name);
+    const nText = deck.slides.reduce((a,s)=>a+s.shapes.filter(x=>x.t==='text').length,0);
+    importDeckIntoStudio(deck);
+    toast('Imported '+deck.slides.length+'-page PDF · '+nText+' editable text boxes');
   } catch(e){ toast('PDF import failed: '+(e.message||e), true); }
 }
 

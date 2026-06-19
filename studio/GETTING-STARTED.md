@@ -25,7 +25,9 @@ Recommended browser: **Chrome or Edge** (best export fidelity). Works in Safari/
 ## Import any asset (top bar → Import)
 Click **Import** to bring an external asset in as a **new, fully-editable canvas**:
 - **Image** (PNG/JPG/SVG) → a canvas with the image placed; add text/elements on top.
-- **PDF** → each page rendered to an editable slide.
+- **PDF** → each page comes in as a **crisp locked image plus an editable text box
+  over every text run** (colors sampled to match), so you can click and retype the
+  PDF's own text. Complex vector art stays in the background image.
 - **PowerPoint (.pptx)** → parsed **shape-by-shape** (text boxes, images, rectangles,
   colors, groups) into the editable deck — not a flat picture. Complex/edge-case
   decks may need `python tools/build_imported.py` for a perfect result.
@@ -124,6 +126,12 @@ delete / add blank) from the panel. Export to PDF / PPTX / PNG / HTML.
 ### A) The form (right panel)
 Type into the fields. For multi-slide/page assets you can **add, reorder (↑ ↓),
 and delete** slides/pages, and change each one's **type**.
+
+### Objects panel (select any component with ease)
+For imported decks/PDFs and any multi-shape slide, the right panel lists **every
+component on the current slide** ("Text: …", "Image", "Shape"). **Click a row to
+select that component on the canvas** — even one hidden behind others — then edit,
+move, recolor or **✕** delete it. The selected row stays highlighted as you work.
 
 ### B) Directly on the canvas (the interactive builder)
 - **Click** any text to select it → a **brand toolbar** floats above it.
