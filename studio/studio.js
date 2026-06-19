@@ -2176,7 +2176,7 @@ function assetRefText(kind, data){
 async function aiDraft(brief, scope, statusEl, mode, ref){
   const fields = aiFields(scope); if(!fields.length){ statusEl.textContent = 'No editable text here to draft.'; return; }
   const spec = fields.map(f=>`- ${f.key} (≤${f.max} chars; current: "${f.cur.slice(0,90)}")`).join('\n');
-  const asset = (B.product ? '' : '') + (KINDS[state.kind].name);
+  const asset = KINDS[state.kind].name;
   const hasImg = ref && ref.image, hasRefTxt = ref && ref.text && ref.text.trim();
   let user;
   if(mode==='generate'){
